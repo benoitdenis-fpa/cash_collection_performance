@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Amelia — Cash Collection Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f3; color: #1a1a1a; min-height: 100vh; }
+  .header { background: #fff; border-bottom: 0.5px solid #e0e0dc; padding: 18px 32px; display: flex; align-items: center; justify-content: space-between; }
+  .header-title { font-size: 15px; font-weight: 500; }
+  .header-sub { font-size: 12px; color: #888; margin-top: 2px; }
+  .header-badge { font-size: 11px; padding: 4px 10px; border-radius: 6px; background: #eaf3de; color: #3b6d11; }
+  .header-badge.loading { background: #fef4e0; color: #8a5a00; }
+  .header-badge.error { background: #fde2e2; color: #a01717; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 28px 24px; }
+  .section-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 0.5px solid #e0e0dc; }
+  .section-gap { margin-bottom: 32px; }
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 20px; }
+  .metric { background: #f0efe9; border-radius: 8px; padding: 14px 16px; }
+  .metric-label { font-size: 11px; color: #888; margin-bottom: 4px; }
+  .metric-value { font-size: 22px; font-weight: 500; color: #1a1a1a; }
+  .metric-value.loading { color: #ccc; }
+  .metric-sub { font-size: 11px; color: #888; margin-top: 2px; }
+  .card { background: #fff; border: 0.5px solid #e0e0dc; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .card-title { font-size: 13px; font-weight: 500; margin-bottom: 14px; color: #1a1a1a; }
+  .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+  .leg-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #666; }
+  .leg-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+  .top5-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .top5-card { background: #fff; border: 0.5px solid #e0e0dc; border-radius: 12px; padding: 16px; }
+  .top5-owner { font-size: 11px; font-weight: 500; margin-bottom: 10px; }
+  .top5-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 0.5px solid #f0efe9; }
+  .top5-row:last-child { border-bottom: none; }
+  .top5-rank { font-size: 11px; color: #bbb; width: 14px; flex-shrink: 0; }
+  .top5-name { font-size: 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #1a1a1a; }
+  .top5-amount { font-size: 12px; font-weight: 500; flex-shrink: 0; color: #1a1a1a; }
+  .coll-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .coll-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border: 0.5px solid #e0e0dc; border-radius: 8px; background: #fff; }
+  .coll-name { font-size: 13px; color: #1a1a1a; }
+  .coll-meta { font-size: 11px; color: #888; margin-top: 1px; }
+  .coll-right { display: flex; align-items: center; gap: 8px; }
+  .coll-amount { font-size: 13px; font-weight: 500; }
+  .badge { font-size: 10px; padding: 2px 7px; border-radius: 5px; background: #eaf3de; color: #3b6d11; }
+  .owner-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 3px; }
+  .divider { height: 1px; background: #e0e0dc; margin: 32px 0; }
+  .config-warning { background: #fef4e0; border: 0.5px solid #e6c88a; border-radius: 8px; padding: 12px 16px; margin: 20px 0; font-size: 12px; color: #6a4900; }
+  .config-warning code { background: rgba(0,0,0,0.05); padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, monospace; font-size: 11px; }
+  @media (max-width: 640px) {
+    .chart-row, .top5-grid, .coll-grid { grid-template-columns: 1fr; }
+    .container { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <p class="header-title">Amelia — Cash Collection Dashboard</p>
+    <p class="header-sub">Data from Supabase · Updated <span id="update-date"></span></p>
+  </div>
+  <span class="header-badge loading" id="status-badge">Loading…</span>
+</div>
+
+<div class="container">
+
+  <div id="config-warning" style="display:none"></div>
+
+  <!-- SECTION 1: PORTFOLIO -->
+  <div class="section-gap">
+    <p class="section-label">1 — Portfolio — current balance</p>
+    <div class="metrics">
+      <div class="metric"><p class="metric-label">Outstanding balance</p><p class="metric-value loading" id="m-outstanding">—</p><p class="metric-sub">EUR equivalent</p></div>
+      <div class="metric"><p class="metric-label">Open invoices</p><p class="metric-value loading" id="m-open-invoices">—</p><p class="metric-sub">across all owners</p></div>
+      <div class="metric"><p class="metric-label">Customers</p><p class="metric-value loading" id="m-customers">—</p><p class="metric-sub">active in engine</p></div>
+      <div class="metric"><p class="metric-label">Avg days overdue</p><p class="metric-value loading" id="m-days-overdue">—</p><p class="metric-sub">across portfolio</p></div>
+    </div>
+
+    <div class="chart-row">
+      <div class="card">
+        <p class="card-title">Balance by owner</p>
+        <div class="legend" id="pie1-legend"></div>
+        <div style="position:relative;width:100%;height:200px">
+          <canvas id="pie1" role="img" aria-label="Balance by owner">Balance by owner.</canvas>
+        </div>
+      </div>
+      <div class="card">
+        <p class="card-title">Balance by debt seniority</p>
+        <div class="legend" id="pie2-legend"></div>
+        <div style="position:relative;width:100%;height:200px">
+          <canvas id="pie2" role="img" aria-label="Balance by seniority">Balance by seniority.</canvas>
+        </div>
+      </div>
+    </div>
+
+    <p class="section-label" style="margin-top:24px">Top 5 open debts by owner</p>
+    <div class="top5-grid" id="balance-top5"></div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- SECTION 2: CASH COLLECTED -->
+  <div class="section-gap">
+    <p class="section-label">2 — Cash collected</p>
+    <div class="metrics">
+      <div class="metric"><p class="metric-label">Cash collected MTD</p><p class="metric-value loading" id="m-cash-mtd">—</p><p class="metric-sub" id="m-cash-mtd-sub">—</p></div>
+      <div class="metric"><p class="metric-label">Cash collected this week</p><p class="metric-value loading" id="m-cash-week">—</p><p class="metric-sub" id="m-cash-week-sub">—</p></div>
+      <div class="metric"><p class="metric-label">Proactive collections MTD</p><p class="metric-value loading" id="m-proactive">—</p><p class="metric-sub" id="m-proactive-sub">—</p></div>
+      <div class="metric"><p class="metric-label">External collection MTD</p><p class="metric-value loading" id="m-external">—</p><p class="metric-sub" id="m-external-sub">—</p></div>
+    </div>
+
+    <div class="card">
+      <p class="card-title">Cash collected by owner — weekly</p>
+      <div class="legend" id="bar1-legend"></div>
+      <div style="position:relative;width:100%;height:280px">
+        <canvas id="bar1" role="img" aria-label="Cash collected by owner per week">Cash collected per week.</canvas>
+      </div>
+    </div>
+
+    <p class="section-label" style="margin-top:24px">Clients collected this week</p>
+    <div class="coll-grid" id="collected-list"></div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- SECTION 3: ACTIVITY -->
+  <div class="section-gap">
+    <p class="section-label">3 — Team activity</p>
+    <div class="chart-row">
+      <div class="card">
+        <p class="card-title">Phone calls by owner — weekly</p>
+        <div class="legend" id="bar3-legend"></div>
+        <div style="position:relative;width:100%;height:220px">
+          <canvas id="bar3" role="img" aria-label="Phone calls per week">Phone calls per week.</canvas>
+        </div>
+      </div>
+      <div class="card">
+        <p class="card-title">Emails sent by owner — weekly</p>
+        <div class="legend" id="bar4-legend"></div>
+        <div style="position:relative;width:100%;height:220px">
+          <canvas id="bar4" role="img" aria-label="Emails sent per week">Emails sent per week.</canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ============================================================================
+// CONFIG — sb_publishable_UplxuS6aYIWvCE66nE1Upg_CtiQoNOZ
+// ============================================================================
+const SUPABASE_URL = 'https://fqcxdcjfkrnnwqcriiah.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_UplxuS6aYIWvCE66nE1Upg_CtiQoNOZ';
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+const fxRates = {EUR:1, USD:0.91, GBP:1.17, CHF:1.05, CAD:0.67, BRL:0.16, INR:0.011, MXN:0.05, CLP:0.001};
+function toEur(bal, curr) { return (parseFloat(bal) || 0) * (fxRates[curr] || 1); }
+
+const owners = [
+  {key:'camille.toutain@brevo.com',   label:'Camille',    color:'#993C1D'},
+  {key:'jessica.szabla@brevo.com',    label:'Jessica',    color:'#534AB7'},
+  {key:'amal.habacha@brevo.com',      label:'Amal',       color:'#185FA5'},
+  {key:'shikhar.singh2@brevo.com',    label:'Shikhar',    color:'#0F6E56'},
+  {key:'rajat.ghanghoria@brevo.com',  label:'Rajat',      color:'#1D9E75'},
+  {key:'nicolas.lanique@brevo.com',   label:'Nicolas',    color:'#854F0B'},
+  {key:'alejandro.labidiburgos@brevo.com', label:'Alejandro', color:'#BA7517'},
+  {key:'non_assigned',                label:'Unassigned', color:'#B4B2A9'},
+];
+
+function ownerLabel(k) { return (owners.find(o=>o.key===k)||{label:k||'—'}).label; }
+function ownerColor(k) { return (owners.find(o=>o.key===k)||{color:'#888'}).color; }
+function fmt(v) { return v>=1000000?'€'+(v/1000000).toFixed(1)+'M':v>=1000?'€'+(v/1000).toFixed(0)+'k':'€'+Math.round(v).toLocaleString(); }
+
+document.getElementById('update-date').textContent = new Date().toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'});
+
+// ============================================================================
+// SUPABASE FETCH HELPER
+// ============================================================================
+async function sbFetch(path) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      Prefer: 'count=exact'
+    }
+  });
+  if (!res.ok) throw new Error(`Supabase ${path}: ${res.status} ${await res.text()}`);
+  return await res.json();
+}
+
+// ============================================================================
+// DATE HELPERS
+// ============================================================================
+function toISODate(d) { return d.toISOString().slice(0,10); }
+function mondayOf(d) {
+  const day = d.getDay(); // 0=Sun, 1=Mon...
+  const diff = (day === 0 ? -6 : 1 - day);
+  const m = new Date(d); m.setDate(m.getDate() + diff); m.setHours(0,0,0,0);
+  return m;
+}
+function monthStart(d) { const m = new Date(d.getFullYear(), d.getMonth(), 1); return m; }
+
+// Build the last 7 weeks (Monday-based)
+function buildLast7Weeks() {
+  const today = new Date();
+  const thisMon = mondayOf(today);
+  const weeks = [];
+  for (let i = 6; i >= 0; i--) {
+    const mon = new Date(thisMon); mon.setDate(mon.getDate() - 7*i);
+    weeks.push(toISODate(mon));
+  }
+  return weeks; // array of ISO dates for Monday of each week
+}
+
+function weekOf(dateStr) {
+  const d = new Date(dateStr);
+  return toISODate(mondayOf(d));
+}
+
+function weekLabel(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-GB', {day:'numeric', month:'short'});
+}
+
+// ============================================================================
+// MAIN LOAD
+// ============================================================================
+async function loadAll() {
+  const badge = document.getElementById('status-badge');
+
+  if (SUPABASE_ANON_KEY === 'PASTE_YOUR_ANON_KEY_HERE') {
+    badge.textContent = 'Config missing';
+    badge.className = 'header-badge error';
+    document.getElementById('config-warning').style.display = 'block';
+    document.getElementById('config-warning').className = 'config-warning';
+    document.getElementById('config-warning').innerHTML =
+      'Add your Supabase anon key to the <code>SUPABASE_ANON_KEY</code> constant at the top of the <code>&lt;script&gt;</code> block, ' +
+      'then refresh. Find the key in Supabase → Settings → API → <code>anon public</code>.';
+    return;
+  }
+
+  try {
+    const weekKeys = buildLast7Weeks();
+    const weeks = weekKeys.map(weekLabel);
+    const historyStart = weekKeys[0];
+    const mtdStart = toISODate(monthStart(new Date()));
+    const thisWeekMon = weekKeys[weekKeys.length - 1];
+
+    // Parallel fetches
+    const [engineRows, historyRows, actionRows, externalRows] = await Promise.all([
+      sbFetch('engine?invoice_status=in.(not paid,not_paid,payment_due)&select=invoice_id,customer_id,customer_name,balance,currency,due_date,owner&limit=5000'),
+      sbFetch(`collection_history?created_at=gte.${historyStart}&select=customer_id,customer_name,balance,currency,created_at,owner,actions_history&limit=5000`),
+      sbFetch(`action_queue?status=eq.done&created_at=gte.${historyStart}&action_type=in.(phone_followup,phone_call_log,reply_customer,send_draft,resume_exchange)&select=customer_id,action_type,source,created_at&limit=10000`),
+      sbFetch(`external_collection?transferred_at=gte.${mtdStart}&select=customer_id,customer_name,balance,currency,transferred_at&limit=1000`)
+    ]);
+
+    renderPortfolio(engineRows);
+    renderCashMetrics(historyRows, externalRows, mtdStart, thisWeekMon);
+    renderCashByOwnerChart(historyRows, weekKeys, weeks);
+    renderCollectedList(historyRows, actionRows, thisWeekMon);
+    renderActivityCharts(actionRows, engineRows, historyRows, weekKeys, weeks);
+    renderProactive(historyRows, actionRows, mtdStart);
+
+    badge.textContent = 'Live data';
+    badge.className = 'header-badge';
+  } catch (err) {
+    console.error(err);
+    badge.textContent = 'Fetch error';
+    badge.className = 'header-badge error';
+    document.getElementById('config-warning').style.display = 'block';
+    document.getElementById('config-warning').className = 'config-warning';
+    document.getElementById('config-warning').innerHTML =
+      'Unable to fetch data from Supabase. Check that the anon key is correct and that RLS policies allow SELECT on ' +
+      '<code>engine</code>, <code>collection_history</code>, <code>action_queue</code>, and <code>external_collection</code>. ' +
+      'Details in the browser console.';
+  }
+}
+
+// ============================================================================
+// SECTION 1 — PORTFOLIO
+// ============================================================================
+function renderPortfolio(rows) {
+  const today = new Date();
+  let totalEur = 0;
+  const invoiceCount = rows.length;
+  const customerSet = new Set();
+  const byOwner = {};
+  const bySeniority = {'0–30d':0, '31–60d':0, '61–90d':0, '90d+':0};
+  let daysSum = 0, daysCount = 0;
+  const byCustomer = {}; // customer_id → {name, ownerKey, sumEur}
+
+  rows.forEach(r => {
+    const eur = toEur(r.balance, r.currency);
+    totalEur += eur;
+    customerSet.add(r.customer_id);
+    const ownerKey = r.owner || 'non_assigned';
+    byOwner[ownerKey] = (byOwner[ownerKey] || 0) + eur;
+
+    // seniority
+    if (r.due_date) {
+      const dueDate = new Date(r.due_date);
+      const daysOverdue = Math.floor((today - dueDate) / 86400000);
+      if (daysOverdue >= 0) { daysSum += daysOverdue; daysCount++; }
+      if (daysOverdue <= 30) bySeniority['0–30d'] += eur;
+      else if (daysOverdue <= 60) bySeniority['31–60d'] += eur;
+      else if (daysOverdue <= 90) bySeniority['61–90d'] += eur;
+      else bySeniority['90d+'] += eur;
+    }
+
+    // by customer for top 5
+    if (!byCustomer[r.customer_id]) byCustomer[r.customer_id] = {name: r.customer_name || r.customer_id, ownerKey, sumEur: 0};
+    byCustomer[r.customer_id].sumEur += eur;
+  });
+
+  document.getElementById('m-outstanding').textContent = fmt(totalEur);
+  document.getElementById('m-outstanding').classList.remove('loading');
+  document.getElementById('m-open-invoices').textContent = invoiceCount;
+  document.getElementById('m-open-invoices').classList.remove('loading');
+  document.getElementById('m-customers').textContent = customerSet.size;
+  document.getElementById('m-customers').classList.remove('loading');
+  document.getElementById('m-days-overdue').textContent = daysCount ? Math.round(daysSum / daysCount) : '—';
+  document.getElementById('m-days-overdue').classList.remove('loading');
+
+  // Pie 1 — balance by owner
+  const byOwnerArr = Object.entries(byOwner).map(([key, v]) => ({key, v})).filter(o => o.key !== 'non_assigned').sort((a,b) => b.v - a.v);
+  buildPieLegend('pie1-legend', byOwnerArr.map(o=>ownerLabel(o.key)), byOwnerArr.map(o=>ownerColor(o.key)), byOwnerArr.map(o=>o.v));
+  new Chart(document.getElementById('pie1'), {
+    type:'doughnut',
+    data:{labels: byOwnerArr.map(o=>ownerLabel(o.key)), datasets:[{data: byOwnerArr.map(o=>o.v), backgroundColor: byOwnerArr.map(o=>ownerColor(o.key)), borderWidth:2, borderColor:'transparent'}]},
+    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:ctx=>' '+fmt(ctx.raw)}}}, cutout:'62%'}
+  });
+
+  // Pie 2 — seniority
+  const seniorityBuckets = ['0–30d','31–60d','61–90d','90d+'];
+  const seniorityColors = ['#1D9E75','#378ADD','#BA7517','#E24B4A'];
+  const seniorityData = seniorityBuckets.map(b => bySeniority[b]);
+  buildPieLegend('pie2-legend', seniorityBuckets, seniorityColors, seniorityData);
+  new Chart(document.getElementById('pie2'), {
+    type:'doughnut',
+    data:{labels: seniorityBuckets, datasets:[{data: seniorityData, backgroundColor: seniorityColors, borderWidth:2, borderColor:'transparent'}]},
+    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:ctx=>' '+fmt(ctx.raw)}}}, cutout:'62%'}
+  });
+
+  // Top 5 by owner
+  const balTop5 = document.getElementById('balance-top5');
+  balTop5.innerHTML = '';
+  owners.filter(o => o.key !== 'non_assigned').forEach(o => {
+    const custs = Object.values(byCustomer).filter(c => c.ownerKey === o.key).sort((a,b) => b.sumEur - a.sumEur).slice(0, 5);
+    if (custs.length === 0) return;
+    const rowsHtml = custs.map((c,i) =>
+      `<div class="top5-row"><span class="top5-rank">${i+1}</span><span class="top5-name">${c.name}</span><span class="top5-amount">${fmt(c.sumEur)}</span></div>`
+    ).join('');
+    balTop5.innerHTML += `<div class="top5-card"><p class="top5-owner" style="color:${o.color}">${o.label}</p>${rowsHtml}</div>`;
+  });
+}
+
+// ============================================================================
+// SECTION 2 — CASH COLLECTED
+// ============================================================================
+function renderCashMetrics(history, external, mtdStart, thisWeekMon) {
+  let mtdEur = 0, mtdCount = 0;
+  let weekEur = 0, weekCount = 0;
+  history.forEach(r => {
+    const eur = toEur(r.balance, r.currency);
+    const created = r.created_at.slice(0,10);
+    if (created >= mtdStart) { mtdEur += eur; mtdCount++; }
+    if (created >= thisWeekMon) { weekEur += eur; weekCount++; }
+  });
+  document.getElementById('m-cash-mtd').textContent = fmt(mtdEur);
+  document.getElementById('m-cash-mtd').classList.remove('loading');
+  document.getElementById('m-cash-mtd-sub').textContent = `${mtdCount} invoices closed`;
+  document.getElementById('m-cash-week').textContent = fmt(weekEur);
+  document.getElementById('m-cash-week').classList.remove('loading');
+  document.getElementById('m-cash-week-sub').textContent = `${weekCount} invoices`;
+
+  // External collection MTD
+  let extEur = 0;
+  const extCustomers = new Set();
+  external.forEach(r => {
+    extEur += toEur(r.balance, r.currency);
+    extCustomers.add(r.customer_id);
+  });
+  document.getElementById('m-external').textContent = fmt(extEur);
+  document.getElementById('m-external').classList.remove('loading');
+  document.getElementById('m-external-sub').textContent = `${extCustomers.size} customer${extCustomers.size !== 1 ? 's' : ''} transferred`;
+}
+
+function renderCashByOwnerChart(history, weekKeys, weekLabels) {
+  // Group by (week, owner)
+  const grouped = {};
+  history.forEach(r => {
+    const wk = weekOf(r.created_at.slice(0,10));
+    if (!weekKeys.includes(wk)) return;
+    const ownerKey = r.owner || 'non_assigned';
+    const key = `${wk}|${ownerKey}`;
+    grouped[key] = (grouped[key] || 0) + toEur(r.balance, r.currency);
+  });
+  const datasets = owners.map(o => ({
+    label: o.label,
+    data: weekKeys.map(wk => grouped[`${wk}|${o.key}`] || 0),
+    backgroundColor: o.color, borderWidth: 0
+  }));
+  buildLegend('bar1-legend', owners.map(o => ({label:o.label, color:o.color})));
+  new Chart(document.getElementById('bar1'), {
+    type:'bar', data:{labels: weekLabels, datasets},
+    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{x:{stacked:true, grid:{display:false}, ticks:{color:'#888', font:{size:11}}},
+              y:{stacked:true, grid:{color:'rgba(0,0,0,0.05)'}, ticks:{color:'#888', font:{size:11}, callback:v=>fmt(v)}}}},
+    plugins:[totalsPluginEur]
+  });
+}
+
+function renderProactive(history, actionRows, mtdStart) {
+  // A collection is "proactive" if the customer had at least one manual/contact_activity action
+  // closed in the 14 days before the invoice was collected.
+  const mtdHistory = history.filter(r => r.created_at.slice(0,10) >= mtdStart);
+  const customersMtd = new Set(mtdHistory.map(r => r.customer_id));
+  const proactiveSources = ['manual', 'contact_activity', 'missing_action_recovery', 'slack_reader'];
+
+  // Build a map: customer_id → set of action dates from proactive sources
+  const proactiveActionsByCust = {};
+  actionRows.forEach(a => {
+    if (!proactiveSources.some(s => (a.source || '').toLowerCase().includes(s))) return;
+    if (!proactiveActionsByCust[a.customer_id]) proactiveActionsByCust[a.customer_id] = [];
+    proactiveActionsByCust[a.customer_id].push(new Date(a.created_at));
+  });
+
+  let proactiveCustCount = 0;
+  customersMtd.forEach(cid => {
+    if (proactiveActionsByCust[cid] && proactiveActionsByCust[cid].length > 0) {
+      // Find the earliest collection date for this customer this MTD
+      const collDates = mtdHistory.filter(r => r.customer_id === cid).map(r => new Date(r.created_at));
+      const earliestColl = new Date(Math.min(...collDates));
+      const hasProactive = proactiveActionsByCust[cid].some(d => {
+        const diffDays = (earliestColl - d) / 86400000;
+        return diffDays >= 0 && diffDays <= 14;
+      });
+      if (hasProactive) proactiveCustCount++;
+    }
+  });
+
+  const total = customersMtd.size;
+  const pct = total ? Math.round(proactiveCustCount / total * 100) : 0;
+  document.getElementById('m-proactive').textContent = pct + '%';
+  document.getElementById('m-proactive').classList.remove('loading');
+  document.getElementById('m-proactive-sub').textContent = `${proactiveCustCount} / ${total} customers`;
+}
+
+function renderCollectedList(history, actionRows, thisWeekMon) {
+  const weekHistory = history.filter(r => r.created_at.slice(0,10) >= thisWeekMon);
+
+  // Aggregate by customer
+  const byCust = {};
+  weekHistory.forEach(r => {
+    if (!r.customer_name) return;
+    if (!byCust[r.customer_id]) byCust[r.customer_id] = {name: r.customer_name, owner: r.owner, sumEur: 0};
+    byCust[r.customer_id].sumEur += toEur(r.balance, r.currency);
+  });
+
+  // Determine proactive tag: customer had proactive action in last 14 days
+  const proactiveSources = ['manual', 'contact_activity', 'missing_action_recovery', 'slack_reader'];
+  const proactiveCust = new Set();
+  actionRows.forEach(a => {
+    if (!proactiveSources.some(s => (a.source || '').toLowerCase().includes(s))) return;
+    const d = new Date(a.created_at);
+    const twoWeeksAgo = new Date(); twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+    if (d >= twoWeeksAgo) proactiveCust.add(a.customer_id);
+  });
+
+  const list = Object.entries(byCust).map(([cid, c]) => ({...c, cid, proactive: proactiveCust.has(cid)})).sort((a,b) => b.sumEur - a.sumEur).slice(0, 20);
+
+  const collList = document.getElementById('collected-list');
+  collList.innerHTML = '';
+  list.forEach(c => {
+    const badge = c.proactive ? `<span class="badge">proactive</span>` : '';
+    const ownerTxt = c.owner && c.owner !== 'non_assigned'
+      ? `<span class="owner-dot" style="background:${ownerColor(c.owner)}"></span>${ownerLabel(c.owner)}`
+      : 'Unassigned';
+    collList.innerHTML += `<div class="coll-row"><div><p class="coll-name">${c.name}</p><p class="coll-meta">${ownerTxt}</p></div><div class="coll-right">${badge}<span class="coll-amount">${fmt(c.sumEur)}</span></div></div>`;
+  });
+
+  if (list.length === 0) {
+    collList.innerHTML = '<div class="coll-row" style="grid-column:1/-1"><p class="coll-name" style="color:#888">No collections yet this week</p></div>';
+  }
+}
+
+// ============================================================================
+// SECTION 3 — ACTIVITY
+// ============================================================================
+function renderActivityCharts(actionRows, engineRows, historyRows, weekKeys, weekLabels) {
+  // Build customer_id → owner map from engine + collection_history
+  const custOwner = {};
+  engineRows.forEach(r => { if (r.customer_id && r.owner) custOwner[r.customer_id] = r.owner; });
+  historyRows.forEach(r => { if (r.customer_id && r.owner && !custOwner[r.customer_id]) custOwner[r.customer_id] = r.owner; });
+
+  const phoneTypes = ['phone_followup', 'phone_call_log'];
+  const emailTypes = ['reply_customer', 'send_draft', 'resume_exchange'];
+
+  const callsGrouped = {}, mailsGrouped = {};
+  actionRows.forEach(a => {
+    const wk = weekOf(a.created_at.slice(0,10));
+    if (!weekKeys.includes(wk)) return;
+    const ownerKey = custOwner[a.customer_id] || 'non_assigned';
+    const key = `${wk}|${ownerKey}`;
+    if (phoneTypes.includes(a.action_type)) callsGrouped[key] = (callsGrouped[key] || 0) + 1;
+    else if (emailTypes.includes(a.action_type)) mailsGrouped[key] = (mailsGrouped[key] || 0) + 1;
+  });
+
+  stackedBarCount('bar3', 'bar3-legend', weekKeys, weekLabels, callsGrouped);
+  stackedBarCount('bar4', 'bar4-legend', weekKeys, weekLabels, mailsGrouped);
+}
+
+function stackedBarCount(canvasId, legendId, weekKeys, weekLabels, grouped) {
+  const ownersFiltered = owners.filter(o => o.key !== 'non_assigned');
+  buildLegend(legendId, ownersFiltered.map(o => ({label:o.label, color:o.color})));
+  const datasets = ownersFiltered.map(o => ({
+    label: o.label,
+    data: weekKeys.map(wk => grouped[`${wk}|${o.key}`] || 0),
+    backgroundColor: o.color, borderWidth: 0
+  }));
+  new Chart(document.getElementById(canvasId), {
+    type:'bar', data:{labels: weekLabels, datasets},
+    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{x:{stacked:true, grid:{display:false}, ticks:{color:'#888', font:{size:11}}},
+              y:{stacked:true, grid:{color:'rgba(0,0,0,0.05)'}, ticks:{color:'#888', font:{size:11}}}}},
+    plugins:[totalsPluginCount]
+  });
+}
+
+// ============================================================================
+// LEGEND HELPERS
+// ============================================================================
+function buildLegend(id, items) {
+  const el = document.getElementById(id);
+  el.innerHTML = '';
+  items.forEach(({label, color}) => {
+    el.innerHTML += `<span class="leg-item"><span class="leg-dot" style="background:${color}"></span>${label}</span>`;
+  });
+}
+
+function buildPieLegend(id, labels, colors, data) {
+  const el = document.getElementById(id);
+  el.innerHTML = '';
+  const total = data.reduce((a,b) => a+b, 0);
+  labels.forEach((l,i) => {
+    const pct = total ? Math.round(data[i]/total*100) : 0;
+    el.innerHTML += `<span class="leg-item"><span class="leg-dot" style="background:${colors[i]}"></span>${l} ${pct}%</span>`;
+  });
+}
+
+const totalsPluginEur = {
+  id: 'totEur',
+  afterDatasetsDraw(chart) {
+    const {ctx, scales:{x,y}, data} = chart;
+    const totals = data.labels.map((_,i) => chart.data.datasets.reduce((s,ds) => s+(ds.data[i]||0), 0));
+    ctx.save(); ctx.font = '11px sans-serif'; ctx.fillStyle = '#888'; ctx.textAlign = 'center';
+    data.labels.forEach((_,i) => {
+      if (totals[i] > 0) {
+        ctx.fillText(fmt(totals[i]), x.getPixelForValue(i), y.getPixelForValue(totals[i]) - 6);
+      }
+    });
+    ctx.restore();
+  }
+};
+
+const totalsPluginCount = {
+  id: 'totCount',
+  afterDatasetsDraw(chart) {
+    const {ctx, scales:{x,y}, data} = chart;
+    const totals = data.labels.map((_,i) => chart.data.datasets.reduce((s,ds) => s+(ds.data[i]||0), 0));
+    ctx.save(); ctx.font = '11px sans-serif'; ctx.fillStyle = '#888'; ctx.textAlign = 'center';
+    data.labels.forEach((_,i) => {
+      if (totals[i] > 0) {
+        ctx.fillText(String(totals[i]), x.getPixelForValue(i), y.getPixelForValue(totals[i]) - 6);
+      }
+    });
+    ctx.restore();
+  }
+};
+
+// ============================================================================
+// GO
+// ============================================================================
+loadAll();
+</script>
+</body>
+</html>
