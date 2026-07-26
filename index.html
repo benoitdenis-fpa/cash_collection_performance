@@ -821,8 +821,15 @@ function renderActivity(ownerKey) {
     }).join('');
   }
 
-  // Top 10 phone calls
-  const phones=(window.gDoneActions||[]).filter(a=>ownerKey?gEngine.find(e=>e.customer_id===a.customer_id&&e.owner===ownerKey):true).slice(0,10);
+  // Top 10 phone calls — filter by owner email in description when owner selected
+  const phones=(window.gDoneActions||[]).filter(a=>{
+    if(!ownerKey) return true;
+    // Primary: description contains owner email (most reliable)
+    if((a.description||'').includes(ownerKey)) return true;
+    // Fallback: engine lookup (only if description has no owner signal)
+    const e=gEngine.find(e=>e.customer_id===a.customer_id);
+    return e&&e.owner===ownerKey&&!(a.description||'').includes('@brevo.com');
+  }).slice(0,10);
   const callBody=document.getElementById('act-calls-body');
   if(!phones.length){callBody.innerHTML='<tr><td colspan="4" class="empty">No phone calls logged</td></tr>';}
   else {
@@ -863,34 +870,54 @@ function renderActivity(ownerKey) {
     }).join('');
   }
 
-  // Activity charts — email outbound + phone weekly
-  const weekKeys=buildLast7Weeks(), weeks=weekKeys.map(weekLabel);
+  // Activity charts — last 10 days, daily count, no owner breakdown
+  const last10Days = [];
+  for(let i=9;i>=0;i--){const d=new Date(today);d.setDate(d.getDate()-i);last10Days.push(toISODate(d));}
+  const dayLabels = last10Days.map(d=>new Date(d).toLocaleDateString('en-GB',{day:'numeric',month:'short'}));
 
+  // Emails outbound per day
   const emailStats=ownerKey?gEmailStats.filter(s=>s.owner===ownerKey):gEmailStats;
-  const emailGrouped={};
+  const emailByDay={};
   emailStats.filter(s=>s.direction==='outbound'&&s.category==='B').forEach(s=>{
-    const wk=weekOf(s.stat_date);
-    if(!weekKeys.includes(wk)) return;
-    const ok=s.owner||'non_assigned';
-    emailGrouped[`${wk}|${ok}`]=(emailGrouped[`${wk}|${ok}`]||0)+(s.nb_emails||0);
+    if(!last10Days.includes(s.stat_date)) return;
+    emailByDay[s.stat_date]=(emailByDay[s.stat_date]||0)+(s.nb_emails||0);
   });
+  const emailData=last10Days.map(d=>emailByDay[d]||0);
 
-  const phoneStats=(window.gDoneActions||[]).filter(a=>ownerKey?gEngine.find(e=>e.customer_id===a.customer_id&&e.owner===ownerKey):true);
-  const phoneGrouped={};
-  phoneStats.forEach(a=>{
-    const wk=weekOf(a.created_at.slice(0,10));
-    if(!weekKeys.includes(wk)) return;
-    const eng=gEngine.find(e=>e.customer_id===a.customer_id);
-    const ok=(eng&&eng.owner)||ownerKey||'non_assigned';
-    phoneGrouped[`${wk}|${ok}`]=(phoneGrouped[`${wk}|${ok}`]||0)+1;
+  // Phone calls per day — filter by owner email in description
+  const phoneByDay={};
+  (window.gDoneActions||[]).filter(a=>{
+    if(!ownerKey) return true;
+    if((a.description||'').includes(ownerKey)) return true;
+    const e=gEngine.find(e=>e.customer_id===a.customer_id);
+    return e&&e.owner===ownerKey&&!(a.description||'').includes('@brevo.com');
+  }).forEach(a=>{
+    const d=a.created_at.slice(0,10);
+    if(!last10Days.includes(d)) return;
+    phoneByDay[d]=(phoneByDay[d]||0)+1;
   });
+  const phoneData=last10Days.map(d=>phoneByDay[d]||0);
 
   // Destroy and recreate charts
   ['act-email-chart','act-phone-chart'].forEach(id=>{
     const c=Chart.getChart(id);if(c)c.destroy();
   });
-  buildStackedBar('act-email-chart','act-email-legend',weekKeys,weeks,emailGrouped,'count');
-  buildStackedBar('act-phone-chart','act-phone-legend',weekKeys,weeks,phoneGrouped,'count');
+
+  // Simple bar chart helper for daily data
+  const buildSimpleBar = (canvasId, legendId, labels, data, color, labelText) => {
+    const el=document.getElementById(canvasId);if(!el)return;
+    document.getElementById(legendId).innerHTML=`<span class="leg-item"><span class="leg-dot" style="background:${color}"></span>${labelText}</span>`;
+    new Chart(el,{
+      type:'bar',
+      data:{labels,datasets:[{data,backgroundColor:color,borderWidth:0,borderRadius:3}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+ctx.raw}}},
+        scales:{x:{grid:{display:false},ticks:{color:'#888',font:{size:10}}},
+                y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#888',font:{size:10},stepSize:1}}}}
+    });
+  };
+
+  buildSimpleBar('act-email-chart','act-email-legend',dayLabels,emailData,'#185FA5','Emails outbound');
+  buildSimpleBar('act-phone-chart','act-phone-legend',dayLabels,phoneData,'#1D9E75','Phone calls');
 }
 
 // ============================================================================
