@@ -479,15 +479,14 @@ async function loadAll() {
     // Also fetch done actions for activity + phone calls
     const doneActions = await sbFetch(`action_queue?status=eq.done&created_at=gte.${historyStart}&action_type=in.(phone_followup,phone_call_log)&select=invoice_id,customer_id,action_type,description,created_at&order=created_at.desc&limit=2000`);
 
+    window.gDoneActions = doneActions;
+
     renderCockpit(weekKeys, mtdStart);
     populateOwnerFilters();
     renderInvoiceTable();
     renderCustomerTable();
     renderActivityOwnerFilter();
     renderActivity(null);
-
-    // Attach done phone actions to gAction for activity charts
-    window.gDoneActions = doneActions;
 
     badge.textContent = 'Live data';
     badge.className = 'badge badge-ok';
