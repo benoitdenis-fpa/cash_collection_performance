@@ -25,11 +25,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .badge-error{background:#fde2e2;color:#a01717}
 
 /* LAYOUT */
-.page{display:none;max-width:1280px;margin:0 auto;padding:24px}
+.page{display:none;max-width:1100px;margin:0 auto;padding:20px}
 .page.active{display:block}
 .section-label{font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid #e0e0dc}
-.section-gap{margin-bottom:32px}
-.divider{height:1px;background:#e0e0dc;margin:28px 0}
+.section-gap{margin-bottom:28px}
+.divider{height:1px;background:#e0e0dc;margin:24px 0}
 
 /* METRICS */
 .metrics{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
@@ -40,10 +40,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .metric-sub{font-size:10px;color:#aaa;margin-top:3px}
 
 /* CARDS */
-.card{background:#fff;border:0.5px solid #e0e0dc;border-radius:10px;padding:16px;margin-bottom:12px}
-.card-title{font-size:12px;font-weight:500;margin-bottom:12px;color:#1a1a1a}
-.chart-row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
-.chart-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px}
+.card{background:#fff;border:0.5px solid #e0e0dc;border-radius:10px;padding:14px;margin-bottom:10px}
+.card-title{font-size:12px;font-weight:500;margin-bottom:10px;color:#1a1a1a}
+.chart-row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.chart-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px}
 
 /* LEGENDS */
 .legend{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
@@ -152,38 +152,38 @@ tbody tr:last-child td{border-bottom:none}
     <!-- Row 1: 3 analysis pies -->
     <div class="chart-row-3">
       <div class="card">
-        <p class="card-title">Aging (seniority)</p>
+        <p class="card-title">Aging — invoice value (€)</p>
         <div class="legend" id="pie-aging-legend"></div>
-        <div style="position:relative;height:160px"><canvas id="pie-aging"></canvas></div>
+        <div style="position:relative;height:140px"><canvas id="pie-aging"></canvas></div>
       </div>
       <div class="card">
-        <p class="card-title">Invoice amount distribution</p>
+        <p class="card-title">Invoice amount brackets — nb of invoices</p>
         <div class="legend" id="pie-amount-legend"></div>
-        <div style="position:relative;height:160px"><canvas id="pie-amount"></canvas></div>
+        <div style="position:relative;height:140px"><canvas id="pie-amount"></canvas></div>
       </div>
       <div class="card">
-        <p class="card-title">By country</p>
+        <p class="card-title">By country — invoice value (€)</p>
         <div class="legend" id="pie-country-legend"></div>
-        <div style="position:relative;height:160px"><canvas id="pie-country"></canvas></div>
+        <div style="position:relative;height:140px"><canvas id="pie-country"></canvas></div>
       </div>
     </div>
 
     <!-- Row 2: 3 owner pies -->
     <div class="chart-row-3">
       <div class="card">
-        <p class="card-title">Balance by owner</p>
+        <p class="card-title">Balance by owner (€)</p>
         <div class="legend" id="pie-bal-legend"></div>
-        <div style="position:relative;height:160px"><canvas id="pie-bal"></canvas></div>
+        <div style="position:relative;height:140px"><canvas id="pie-bal"></canvas></div>
       </div>
       <div class="card">
-        <p class="card-title">Invoices by owner</p>
+        <p class="card-title">Invoices by owner (count)</p>
         <div class="legend" id="pie-inv-legend"></div>
-        <div style="position:relative;height:160px"><canvas id="pie-inv"></canvas></div>
+        <div style="position:relative;height:140px"><canvas id="pie-inv"></canvas></div>
       </div>
       <div class="card">
-        <p class="card-title">Customers by owner</p>
+        <p class="card-title">Customers by owner (count)</p>
         <div class="legend" id="pie-cust-legend"></div>
-        <div style="position:relative;height:160px"><canvas id="pie-cust"></canvas></div>
+        <div style="position:relative;height:140px"><canvas id="pie-cust"></canvas></div>
       </div>
     </div>
 
@@ -204,14 +204,14 @@ tbody tr:last-child td{border-bottom:none}
     </div>
     <div class="chart-row-2">
       <div class="card">
-        <p class="card-title">Cash collected by owner — 3 months</p>
+        <p class="card-title">Cash collected by owner — 3 months (€)</p>
         <div class="legend" id="bar-cash-legend"></div>
-        <div style="position:relative;height:240px"><canvas id="bar-cash"></canvas></div>
+        <div style="position:relative;height:200px"><canvas id="bar-cash"></canvas></div>
       </div>
       <div class="card">
-        <p class="card-title">Proactive vs. automated collections — 3 months</p>
+        <p class="card-title">Proactive vs. automated — 3 months (€)</p>
         <div class="legend" id="bar-proactive-legend"></div>
-        <div style="position:relative;height:240px"><canvas id="bar-proactive"></canvas></div>
+        <div style="position:relative;height:200px"><canvas id="bar-proactive"></canvas></div>
       </div>
     </div>
   </div>
@@ -229,14 +229,14 @@ tbody tr:last-child td{border-bottom:none}
     </div>
     <div class="chart-row-2">
       <div class="card">
-        <p class="card-title">Phone calls — 10 days</p>
+        <p class="card-title">Phone calls — 10 days (count)</p>
         <div class="legend" id="ck-phone-legend"></div>
-        <div style="position:relative;height:180px"><canvas id="ck-phone-chart"></canvas></div>
+        <div style="position:relative;height:150px"><canvas id="ck-phone-chart"></canvas></div>
       </div>
       <div class="card">
-        <p class="card-title">Outbound emails — 10 days</p>
+        <p class="card-title">Outbound emails — 10 days (count)</p>
         <div class="legend" id="ck-email-legend"></div>
-        <div style="position:relative;height:180px"><canvas id="ck-email-chart"></canvas></div>
+        <div style="position:relative;height:150px"><canvas id="ck-email-chart"></canvas></div>
       </div>
     </div>
   </div>
@@ -438,22 +438,33 @@ function last10Days() {
   return days;
 }
 
-// Extract country from customer_name or language heuristic
+// Extract country — maps language+currency+invoice prefix to country name
 function extractCountry(r) {
-  if(r.language_email==='German') return 'Germany';
+  // Invoice prefix takes priority (most reliable)
+  if(r.invoice_id){
+    if(r.invoice_id.startsWith('SIB-GMBH')) return 'Germany';
+    if(r.invoice_id.startsWith('SIB-INC')) return 'USA';
+    if(r.invoice_id.startsWith('SIB-SAS')) {
+      // SAS = France entity, but customer may be other country — use language next
+    }
+  }
+  // Language
   if(r.language_email==='French') return 'France';
+  if(r.language_email==='German') return 'Germany';
   if(r.language_email==='Spanish') return 'Spain';
   if(r.language_email==='Italian') return 'Italy';
   if(r.language_email==='Portuguese') return 'Portugal';
+  // Currency fallback
   if(r.currency==='GBP') return 'UK';
   if(r.currency==='USD') return 'USA';
   if(r.currency==='CAD') return 'Canada';
   if(r.currency==='BRL') return 'Brazil';
   if(r.currency==='INR') return 'India';
+  if(r.currency==='MXN') return 'Mexico';
+  if(r.currency==='CLP') return 'Chile';
   if(r.currency==='CHF') return 'Switzerland';
-  if(r.invoice_id&&r.invoice_id.includes('GMBH')) return 'Germany';
-  if(r.invoice_id&&r.invoice_id.includes('INC')) return 'USA';
-  return r.language_email||'Other';
+  // Default
+  return 'Other';
 }
 
 // ============ SUPABASE ============
@@ -495,7 +506,7 @@ async function loadAll() {
       sbFetch('engine?invoice_status=in.(not paid,not_paid,payment_due)&select=invoice_id,customer_id,customer_name,balance,currency,due_date,invoice_date,owner,language_email&limit=10000'),
       sbFetch(`collection_history?created_at=gte.${histStart}&select=customer_id,customer_name,balance,currency,created_at,owner&limit=10000`),
       sbFetch(`action_queue?status=eq.pending&select=invoice_id,customer_id,action_type,description,source,due_date,created_at&limit=10000`),
-      sbFetch(`external_collection?select=customer_id,customer_name,balance,currency,transferred_at,owner,tag_provision_chargebee,customer_chargebee_id&limit=2000`),
+      sbFetch(`external_collection?select=customer_id,customer_name,invoice_id,balance,currency,transferred_at,owner,tag_provision_chargebee,customer_chargebee_id,description,comments&limit=2000`),
       sbFetch(`reminder_queue?status=eq.draft&select=invoice_id,customer_id,reminder_num,language,balance,currency,created_at&order=balance.desc&limit=1000`),
       sbFetch(`daily_email_stats?stat_date=gte.${histStart}&select=stat_date,owner,category,direction,nb_emails&limit=50000`),
       sbFetch(`action_queue?status=eq.done&created_at=gte.${histStart}&action_type=in.(phone_followup,phone_call_log)&select=invoice_id,customer_id,action_type,description,created_at&order=created_at.desc&limit=5000`),
@@ -522,7 +533,9 @@ function renderCockpit(weekKeys, mtdStart, sevenDaysAgo) {
   let totalEur=0; const custSet=new Set(); let daysSum=0,daysCount=0;
   const byOwnerBal={}, byOwnerInv={}, byOwnerCust={};
   const bySeniority={'0–30d':0,'31–60d':0,'61–90d':0,'90d+':0};
-  const byAmount={'<1k':0,'1k–5k':0,'5k–25k':0,'25k–100k':0,'>100k':0};
+  // byAmount counts NUMBER OF INVOICES per bracket (not value)
+  const byAmount={'<1k€':0,'1k–5k€':0,'5k–25k€':0,'25k–100k€':0,'>100k€':0};
+  // byCountry counts invoice VALUE in EUR per country
   const byCountry={};
   const byCustomer={};
 
@@ -533,8 +546,9 @@ function renderCockpit(weekKeys, mtdStart, sevenDaysAgo) {
     byOwnerBal[ok]=(byOwnerBal[ok]||0)+eur;
     byOwnerInv[ok]=(byOwnerInv[ok]||0)+1;
     if(r.due_date){const d=daysOver(r.due_date);daysSum+=d;daysCount++;
-      if(d<=30)bySeniority['0–30d']+=eur;else if(d<=60)bySeniority['31–60d']+=eur;else if(d<=90)bySeniority['61–90d']+=eur;else bySeniority['90d+']+= eur;}
-    if(eur<1000)byAmount['<1k']+=eur;else if(eur<5000)byAmount['1k–5k']+=eur;else if(eur<25000)byAmount['5k–25k']+=eur;else if(eur<100000)byAmount['25k–100k']+=eur;else byAmount['>100k']+=eur;
+      if(d<=30)bySeniority['0–30d']+=eur;else if(d<=60)bySeniority['31–60d']+=eur;else if(d<=90)bySeniority['61–90d']+=eur;else bySeniority['90d+']+=eur;}
+    // Count invoices per bracket (nb, not value)
+    if(eur<1000)byAmount['<1k€']++;else if(eur<5000)byAmount['1k–5k€']++;else if(eur<25000)byAmount['5k–25k€']++;else if(eur<100000)byAmount['25k–100k€']++;else byAmount['>100k€']++;
     const country=extractCountry(r);
     byCountry[country]=(byCountry[country]||0)+eur;
     if(!byCustomer[r.customer_id])byCustomer[r.customer_id]={name:r.customer_name||r.customer_id,ownerKey:ok,sumEur:0};
@@ -562,12 +576,12 @@ function renderCockpit(weekKeys, mtdStart, sevenDaysAgo) {
   const senBuckets=['0–30d','31–60d','61–90d','90d+'], senColors=['#1D9E75','#378ADD','#BA7517','#E24B4A'];
   buildDoughnut('pie-aging','pie-aging-legend',senBuckets.map((b,i)=>({label:b,color:senColors[i],v:bySeniority[b]})),fmt);
 
-  // Pie: amount distribution
-  const amtBuckets=['<1k','1k–5k','5k–25k','25k–100k','>100k'], amtColors=['#B4B2A9','#378ADD','#BA7517','#993C1D','#E24B4A'];
+  // Pie: amount distribution — shows NUMBER of invoices per bracket
+  const amtBuckets=['<1k€','1k–5k€','5k–25k€','25k–100k€','>100k€'], amtColors=['#B4B2A9','#378ADD','#BA7517','#993C1D','#E24B4A'];
   buildDoughnut('pie-amount','pie-amount-legend',amtBuckets.map((b,i)=>({label:b,color:amtColors[i],v:byAmount[b]})),v=>v+' inv');
 
-  // Pie: country (top 8)
-  const topCountries=Object.entries(byCountry).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  // Pie: country (top 8) — shows invoice VALUE in EUR
+  const topCountries=Object.entries(byCountry).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,8);
   const ctryColors=['#1D9E75','#185FA5','#993C1D','#BA7517','#534AB7','#854F0B','#7A2E7A','#B4B2A9'];
   buildDoughnut('pie-country','pie-country-legend',topCountries.map(([c,v],i)=>({label:c,color:ctryColors[i]||'#ccc',v})),fmt);
 
@@ -798,11 +812,18 @@ function buildExtRows() {
       totalEur:0,
       invoices:[],
       transferred_at:r.transferred_at,
-      reason:r.tag_provision_chargebee||'—'
+      // Use description/comments field for reason, fall back to tag
+      reason:'—'
     };
     const c=byCust[r.customer_id];
     c.totalEur+=toEur(r.balance,r.currency);
-    if(r.customer_chargebee_id&&!c.invoices.includes(r.customer_chargebee_id))c.invoices.push(r.customer_chargebee_id);
+    // Collect invoice_ids (not chargebee internal IDs)
+    const invId=r.invoice_id||r.customer_chargebee_id;
+    if(invId&&!c.invoices.includes(invId))c.invoices.push(invId);
+    // Build reason from description or comments, ignoring boolean-like values
+    const rawReason=r.description||r.comments||r.tag_provision_chargebee||'';
+    const cleanReason=typeof rawReason==='string'&&rawReason&&rawReason!=='true'&&rawReason!=='false'&&rawReason!=='unknown'?rawReason:'—';
+    if(cleanReason!=='—') c.reason=cleanReason;
   });
   gExtRows=Object.values(byCust);
 }
