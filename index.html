@@ -229,14 +229,26 @@ tbody tr:last-child td{border-bottom:none}
     </div>
     <div class="chart-row-2">
       <div class="card">
-        <p class="card-title">Phone calls — 10 days (count)</p>
-        <div class="legend" id="ck-phone-legend"></div>
-        <div style="position:relative;height:150px"><canvas id="ck-phone-chart"></canvas></div>
+        <p class="card-title">Successful calls — weekly by owner</p>
+        <div class="legend" id="ck-phone-ok-legend"></div>
+        <div style="position:relative;height:140px"><canvas id="ck-phone-ok-chart"></canvas></div>
       </div>
       <div class="card">
-        <p class="card-title">Outbound emails — 10 days (count)</p>
+        <p class="card-title">Unsuccessful calls — weekly by owner</p>
+        <div class="legend" id="ck-phone-nok-legend"></div>
+        <div style="position:relative;height:140px"><canvas id="ck-phone-nok-chart"></canvas></div>
+      </div>
+    </div>
+    <div class="chart-row-2">
+      <div class="card">
+        <p class="card-title">Outbound emails — weekly by owner</p>
         <div class="legend" id="ck-email-legend"></div>
-        <div style="position:relative;height:150px"><canvas id="ck-email-chart"></canvas></div>
+        <div style="position:relative;height:140px"><canvas id="ck-email-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <p class="card-title">Reminder emails — weekly by owner</p>
+        <div class="legend" id="ck-rem-legend"></div>
+        <div style="position:relative;height:140px"><canvas id="ck-rem-chart"></canvas></div>
       </div>
     </div>
   </div>
@@ -353,12 +365,26 @@ tbody tr:last-child td{border-bottom:none}
 
   <div class="chart-row-2">
     <div class="card">
-      <p class="card-title">Phone calls — 10 days</p>
-      <div style="position:relative;height:180px"><canvas id="act-phone-chart"></canvas></div>
+      <p class="card-title">Successful calls — 15 days by owner</p>
+      <div class="legend" id="act-phone-legend-act"></div>
+      <div style="position:relative;height:160px"><canvas id="act-phone-chart"></canvas></div>
     </div>
     <div class="card">
-      <p class="card-title">Outbound emails — 10 days</p>
-      <div style="position:relative;height:180px"><canvas id="act-email-chart"></canvas></div>
+      <p class="card-title">Unsuccessful calls — 15 days by owner</p>
+      <div class="legend" id="act-phone-nok-legend-act"></div>
+      <div style="position:relative;height:160px"><canvas id="act-phone-nok-chart"></canvas></div>
+    </div>
+  </div>
+  <div class="chart-row-2">
+    <div class="card">
+      <p class="card-title">Outbound emails — 15 days by owner</p>
+      <div class="legend" id="act-email-legend-act"></div>
+      <div style="position:relative;height:160px"><canvas id="act-email-chart"></canvas></div>
+    </div>
+    <div class="card">
+      <p class="card-title">Reminder emails — 15 days by owner</p>
+      <div class="legend" id="act-rem-legend-act"></div>
+      <div style="position:relative;height:160px"><canvas id="act-rem-chart"></canvas></div>
     </div>
   </div>
 </div>
@@ -506,7 +532,7 @@ async function loadAll() {
       sbFetch('engine?invoice_status=in.(not paid,not_paid,payment_due)&select=invoice_id,customer_id,customer_name,balance,currency,due_date,invoice_date,owner,language_email&limit=10000'),
       sbFetch(`collection_history?created_at=gte.${histStart}&select=customer_id,customer_name,balance,currency,created_at,owner&limit=10000`),
       sbFetch(`action_queue?status=eq.pending&select=invoice_id,customer_id,action_type,description,source,due_date,created_at&limit=10000`),
-      sbFetch(`external_collection?select=customer_id,customer_name,invoice_id,balance,currency,transferred_at,owner,tag_provision_chargebee,customer_chargebee_id,description,comments&limit=2000`),
+      sbFetch(`external_collection?select=customer_id,customer_name,invoice_id,balance,currency,transferred_at,owner,tag_provision_chargebee,actions_history&limit=2000`),
       sbFetch(`reminder_queue?status=eq.draft&select=invoice_id,customer_id,reminder_num,language,balance,currency,created_at&order=balance.desc&limit=1000`),
       sbFetch(`daily_email_stats?stat_date=gte.${histStart}&select=stat_date,owner,category,direction,nb_emails&limit=50000`),
       sbFetch(`action_queue?status=eq.done&created_at=gte.${histStart}&action_type=in.(phone_followup,phone_call_log)&select=invoice_id,customer_id,action_type,description,created_at&order=created_at.desc&limit=5000`),
@@ -673,23 +699,72 @@ function renderCashCharts(weekKeys, mtdStart) {
 }
 
 function renderCockpitActivity(sevenDaysAgo) {
-  // Phone calls 7d
-  const callsOk=gDoneActions.filter(a=>a.created_at.slice(0,10)>=sevenDaysAgo&&(a.description||'').toLowerCase().includes('no reply')===false).length;
-  const callsNok=gDoneActions.filter(a=>a.created_at.slice(0,10)>=sevenDaysAgo&&(a.description||'').toLowerCase().includes('no reply')).length;
-  const remEmails=gEmailStats.filter(s=>s.stat_date>=sevenDaysAgo&&s.category==='A'&&s.direction==='outbound').reduce((s,r)=>s+(r.nb_emails||0),0);
-  const outEmails=gEmailStats.filter(s=>s.stat_date>=sevenDaysAgo&&s.category==='B'&&s.direction==='outbound').reduce((s,r)=>s+(r.nb_emails||0),0);
+  const NO_ANSWER_PATTERNS = ['no reply','no answer','no one picked up','no pickup','not responsible','no response','unresponsive'];
+  const isNoAnswer = desc => NO_ANSWER_PATTERNS.some(p => (desc||'').toLowerCase().includes(p));
+
+  // KPIs — last 7 days, dedup: 1 per customer per day per category
+  const seenKpi = new Set();
+  let callsOk=0, callsNok=0;
+  gDoneActions.filter(a=>a.created_at.slice(0,10)>=sevenDaysAgo).forEach(a=>{
+    const cat=isNoAnswer(a.description)?'nok':'ok';
+    const key=`${a.customer_id}|${a.created_at.slice(0,10)}|${cat}`;
+    if(seenKpi.has(key)) return;
+    seenKpi.add(key);
+    if(cat==='nok') callsNok++; else callsOk++;
+  });
+  const remEmails = gEmailStats.filter(s=>s.stat_date>=sevenDaysAgo&&s.category==='A'&&s.direction==='outbound').reduce((s,r)=>s+(r.nb_emails||0),0);
+  const outEmails = gEmailStats.filter(s=>s.stat_date>=sevenDaysAgo&&s.category==='B'&&s.direction==='outbound').reduce((s,r)=>s+(r.nb_emails||0),0);
 
   setText('ck-calls-ok',callsOk); setText('ck-calls-nok',callsNok);
   setText('ck-rem-emails',remEmails); setText('ck-out-emails',outEmails);
 
-  // Daily charts
-  const days=last10Days(), dayLabels=days.map(d=>new Date(d).toLocaleDateString('en-GB',{day:'numeric',month:'short'}));
-  const phoneByDay={}, emailByDay={};
-  gDoneActions.forEach(a=>{const d=a.created_at.slice(0,10);if(days.includes(d))phoneByDay[d]=(phoneByDay[d]||0)+1;});
-  gEmailStats.filter(s=>s.direction==='outbound'&&s.category==='B').forEach(s=>{if(days.includes(s.stat_date))emailByDay[s.stat_date]=(emailByDay[s.stat_date]||0)+(s.nb_emails||0);});
+  // Charts — weekly, 3 months (13 weeks), stacked by owner
+  const weekKeys = build13Weeks();
+  const weekLabels = weekKeys.map(weekLabel);
 
-  buildSimpleBar('ck-phone-chart','ck-phone-legend',dayLabels,days.map(d=>phoneByDay[d]||0),'#1D9E75','Phone calls');
-  buildSimpleBar('ck-email-chart','ck-email-legend',dayLabels,days.map(d=>emailByDay[d]||0),'#185FA5','Outbound emails');
+  // Dedup: 1 action per customer per day per category
+  // Build a Set of unique keys: "customer_id|date|ok/nok"
+  const phoneOkGrouped = {}, phoneNokGrouped = {}, emailGrouped = {}, remGrouped = {};
+  const seenPhone = new Set();
+
+  gDoneActions.forEach(a => {
+    const wk = weekOf(a.created_at.slice(0,10));
+    if(!weekKeys.includes(wk)) return;
+    const noAns = isNoAnswer(a.description);
+    const cat = noAns ? 'nok' : 'ok';
+    // Dedup key: 1 per customer per day per category
+    const dedupKey = `${a.customer_id}|${a.created_at.slice(0,10)}|${cat}`;
+    if(seenPhone.has(dedupKey)) return;
+    seenPhone.add(dedupKey);
+
+    const match = (a.description||'').match(/\(by ([^)]+)\)/);
+    const ownerEmail = match ? match[1].trim() : null;
+    const ownerFromDesc = ownerEmail && owners.find(o=>o.key===ownerEmail);
+    const eng = !ownerFromDesc ? gEngine.find(e => e.customer_id === a.customer_id) : null;
+    const ok = ownerFromDesc ? ownerEmail : (eng && eng.owner) || 'non_assigned';
+
+    if(noAns) phoneNokGrouped[`${wk}|${ok}`]=(phoneNokGrouped[`${wk}|${ok}`]||0)+1;
+    else phoneOkGrouped[`${wk}|${ok}`]=(phoneOkGrouped[`${wk}|${ok}`]||0)+1;
+  });
+
+  gEmailStats.filter(s=>s.direction==='outbound'&&s.category==='B').forEach(s=>{
+    const wk=weekOf(s.stat_date);
+    if(!weekKeys.includes(wk)) return;
+    const ok=s.owner||'non_assigned';
+    emailGrouped[`${wk}|${ok}`]=(emailGrouped[`${wk}|${ok}`]||0)+(s.nb_emails||0);
+  });
+
+  gEmailStats.filter(s=>s.direction==='outbound'&&s.category==='A').forEach(s=>{
+    const wk=weekOf(s.stat_date);
+    if(!weekKeys.includes(wk)) return;
+    const ok=s.owner||'non_assigned';
+    remGrouped[`${wk}|${ok}`]=(remGrouped[`${wk}|${ok}`]||0)+(s.nb_emails||0);
+  });
+
+  buildStackedBar('ck-phone-ok-chart','ck-phone-ok-legend',weekKeys,weekLabels,phoneOkGrouped,'count',false);
+  buildStackedBar('ck-phone-nok-chart','ck-phone-nok-legend',weekKeys,weekLabels,phoneNokGrouped,'count',false);
+  buildStackedBar('ck-email-chart','ck-email-legend',weekKeys,weekLabels,emailGrouped,'count',false);
+  buildStackedBar('ck-rem-chart','ck-rem-legend',weekKeys,weekLabels,remGrouped,'count',false);
 }
 
 // ============ FILTERS POPULATION ============
@@ -812,18 +887,43 @@ function buildExtRows() {
       totalEur:0,
       invoices:[],
       transferred_at:r.transferred_at,
-      // Use description/comments field for reason, fall back to tag
       reason:'—'
     };
     const c=byCust[r.customer_id];
     c.totalEur+=toEur(r.balance,r.currency);
-    // Collect invoice_ids (not chargebee internal IDs)
-    const invId=r.invoice_id||r.customer_chargebee_id;
-    if(invId&&!c.invoices.includes(invId))c.invoices.push(invId);
-    // Build reason from description or comments, ignoring boolean-like values
-    const rawReason=r.description||r.comments||r.tag_provision_chargebee||'';
-    const cleanReason=typeof rawReason==='string'&&rawReason&&rawReason!=='true'&&rawReason!=='false'&&rawReason!=='unknown'?rawReason:'—';
-    if(cleanReason!=='—') c.reason=cleanReason;
+
+    // Collect invoice_id (the actual invoice identifier)
+    if(r.invoice_id&&!c.invoices.includes(String(r.invoice_id)))
+      c.invoices.push(String(r.invoice_id));
+
+    // Extract reason from actions_history
+    if(r.actions_history){
+      // Pattern 1: explicit "Reason: ..." in transfer action
+      let match=r.actions_history.match(/Reason:\s*([^.,\]\/]+)/i);
+      if(match){
+        const reason=match[1].trim();
+        if(reason&&reason!=='unknown'&&reason!=='true'&&reason!=='false')
+          c.reason=reason;
+      }
+      // Pattern 2: BLOCKER description mentioning transfer
+      if(c.reason==='—'){
+        match=r.actions_history.match(/BLOCKER:\s*([^.]+\.)/i);
+        if(match) c.reason=match[1].trim().slice(0,120);
+      }
+      // Pattern 3: last csm_context or check_payment_date description
+      if(c.reason==='—'){
+        const descs=[...r.actions_history.matchAll(/description:([^,/]+(?:,(?!\s*due_date)[^,/]+)*)/gi)];
+        if(descs.length){
+          const last=descs[descs.length-1][1].trim();
+          if(last.length>10) c.reason=last.slice(0,120);
+        }
+      }
+    }
+    // Fallback: tag_provision_chargebee if not boolean
+    if(c.reason==='—'){
+      const tag=r.tag_provision_chargebee||'';
+      if(tag&&tag!=='unknown'&&tag!=='true'&&tag!=='false') c.reason=tag;
+    }
   });
   gExtRows=Object.values(byCust);
 }
@@ -931,9 +1031,18 @@ function renderActivity(ownerKey, sevenDaysAgo) {
   doneFiltered.filter(a=>a.created_at.slice(0,10)>=sevenDaysAgo).forEach(a=>contactedCusts.add(a.customer_id));
   const covPct=custSet.size?Math.round(contactedCusts.size/custSet.size*100):0;
 
-  // Phone splits
-  const callsOk=doneFiltered.filter(a=>a.created_at.slice(0,10)>=sevenDaysAgo&&!(a.description||'').toLowerCase().includes('no reply')).length;
-  const callsNok=doneFiltered.filter(a=>a.created_at.slice(0,10)>=sevenDaysAgo&&(a.description||'').toLowerCase().includes('no reply')).length;
+  // Phone splits — dedup: 1 per customer per day per category
+  const NO_ANSWER = ['no reply','no answer','no one picked up','no pickup','not responsible','no response','unresponsive'];
+  const isNoAns = desc => NO_ANSWER.some(p=>(desc||'').toLowerCase().includes(p));
+  const seenAct = new Set();
+  let callsOk=0, callsNok=0;
+  doneFiltered.filter(a=>a.created_at.slice(0,10)>=sevenDaysAgo).forEach(a=>{
+    const cat = isNoAns(a.description)?'nok':'ok';
+    const key = `${a.customer_id}|${a.created_at.slice(0,10)}|${cat}`;
+    if(seenAct.has(key)) return;
+    seenAct.add(key);
+    if(cat==='nok') callsNok++; else callsOk++;
+  });
 
   // Email splits
   const emailStats=ownerKey?gEmailStats.filter(s=>s.owner===ownerKey):gEmailStats;
@@ -993,15 +1102,48 @@ function renderActivity(ownerKey, sevenDaysAgo) {
     return `<div class="act-row"><span class="act-type ${tc}">${(a.action_type||'').replace(/_/g,' ')}</span><div class="act-desc"><div class="name">${escape((e&&e.customer_name)||a.customer_id)}</div><div class="detail">${escape((a.description||'').slice(0,120))}</div></div><span class="act-date">${ts}</span></div>`;
   }).join('');
 
-  // Charts 10 days
-  const days=last10Days(), dayLabels=days.map(d=>new Date(d).toLocaleDateString('en-GB',{day:'numeric',month:'short'}));
-  const phoneByDay={}, emailByDay={};
-  doneFiltered.forEach(a=>{const d=a.created_at.slice(0,10);if(days.includes(d))phoneByDay[d]=(phoneByDay[d]||0)+1;});
-  emailStats.filter(s=>s.direction==='outbound'&&s.category==='B').forEach(s=>{if(days.includes(s.stat_date))emailByDay[s.stat_date]=(emailByDay[s.stat_date]||0)+(s.nb_emails||0);});
+  // Charts — 15 days, stacked by owner, dedup 1 per customer per day per category
+  const last15 = [];
+  for(let i=14;i>=0;i--){const d=new Date(today);d.setDate(d.getDate()-i);last15.push(toISO(d));}
+  const day15Labels = last15.map(d=>new Date(d).toLocaleDateString('en-GB',{day:'numeric',month:'short'}));
 
-  ['act-phone-chart','act-email-chart'].forEach(id=>destroyChart(id));
-  buildSimpleBar('act-phone-chart',null,dayLabels,days.map(d=>phoneByDay[d]||0),'#1D9E75','Phone calls');
-  buildSimpleBar('act-email-chart',null,dayLabels,days.map(d=>emailByDay[d]||0),'#185FA5','Outbound emails');
+  const actPhoneOk={}, actPhoneNok={}, actEmail={}, actRem={};
+  const seenActChart = new Set();
+
+  doneFiltered.forEach(a=>{
+    const d=a.created_at.slice(0,10);
+    if(!last15.includes(d)) return;
+    const noAns=isNoAns(a.description);
+    const cat=noAns?'nok':'ok';
+    const dedupKey=`${a.customer_id}|${d}|${cat}`;
+    if(seenActChart.has(dedupKey)) return;
+    seenActChart.add(dedupKey);
+    const match=(a.description||'').match(/\(by ([^)]+)\)/);
+    const ownerEmail=match?match[1].trim():null;
+    const ownerFromDesc=ownerEmail&&owners.find(o=>o.key===ownerEmail);
+    const fallbackEng=!ownerFromDesc?eng.find(e=>e.customer_id===a.customer_id):null;
+    const ok=ownerFromDesc?ownerEmail:(fallbackEng&&fallbackEng.owner)||ownerKey||'non_assigned';
+    const key=`${d}|${ok}`;
+    if(noAns) actPhoneNok[key]=(actPhoneNok[key]||0)+1;
+    else actPhoneOk[key]=(actPhoneOk[key]||0)+1;
+  });
+
+  emailStats.filter(s=>s.direction==='outbound'&&s.category==='B').forEach(s=>{
+    if(!last15.includes(s.stat_date)) return;
+    const ok=s.owner||'non_assigned';
+    actEmail[`${s.stat_date}|${ok}`]=(actEmail[`${s.stat_date}|${ok}`]||0)+(s.nb_emails||0);
+  });
+  emailStats.filter(s=>s.direction==='outbound'&&s.category==='A').forEach(s=>{
+    if(!last15.includes(s.stat_date)) return;
+    const ok=s.owner||'non_assigned';
+    actRem[`${s.stat_date}|${ok}`]=(actRem[`${s.stat_date}|${ok}`]||0)+(s.nb_emails||0);
+  });
+
+  ['act-phone-chart','act-email-chart','act-phone-nok-chart','act-rem-chart'].forEach(id=>destroyChart(id));
+  buildStackedBar('act-phone-chart','act-phone-legend-act',last15,day15Labels,actPhoneOk,'count',false);
+  buildStackedBar('act-phone-nok-chart','act-phone-nok-legend-act',last15,day15Labels,actPhoneNok,'count',false);
+  buildStackedBar('act-email-chart','act-email-legend-act',last15,day15Labels,actEmail,'count',false);
+  buildStackedBar('act-rem-chart','act-rem-legend-act',last15,day15Labels,actRem,'count',false);
 }
 
 // ============ CHART HELPERS ============
@@ -1011,8 +1153,16 @@ function setText(id,val){const el=document.getElementById(id);if(el){el.textCont
 const totalsPluginEur={id:'totEur',afterDatasetsDraw(chart){
   const {ctx,scales:{x,y},data}=chart;
   const totals=data.labels.map((_,i)=>chart.data.datasets.reduce((s,ds)=>s+(ds.data[i]||0),0));
-  ctx.save();ctx.font='10px sans-serif';ctx.fillStyle='#888';ctx.textAlign='center';
-  data.labels.forEach((_,i)=>{if(totals[i]>0)ctx.fillText(fmt(totals[i]),x.getPixelForValue(i),y.getPixelForValue(totals[i])-5);});
+  ctx.save();ctx.font='bold 11px sans-serif';ctx.fillStyle='#444';ctx.textAlign='center';
+  data.labels.forEach((_,i)=>{if(totals[i]>0)ctx.fillText(fmt(totals[i]),x.getPixelForValue(i),y.getPixelForValue(totals[i])-8);});
+  ctx.restore();
+}};
+
+const totalsPluginCount={id:'totCount',afterDatasetsDraw(chart){
+  const {ctx,scales:{x,y},data}=chart;
+  const totals=data.labels.map((_,i)=>chart.data.datasets.reduce((s,ds)=>s+(ds.data[i]||0),0));
+  ctx.save();ctx.font='bold 11px sans-serif';ctx.fillStyle='#444';ctx.textAlign='center';
+  data.labels.forEach((_,i)=>{if(totals[i]>0)ctx.fillText(totals[i],x.getPixelForValue(i),y.getPixelForValue(totals[i])-8);});
   ctx.restore();
 }};
 
@@ -1035,11 +1185,15 @@ function buildStackedBar(canvasId,legendId,weekKeys,weekLabels,grouped,mode,incl
   const ownerList=includeOther?owners:[...owners.filter(o=>o.key!=='non_assigned')];
   if(legendId)document.getElementById(legendId).innerHTML=ownerList.map(o=>`<span class="leg-item"><span class="leg-dot" style="background:${o.color}"></span>${o.label}</span>`).join('');
   const datasets=ownerList.map(o=>({label:o.label,data:weekKeys.map(wk=>grouped[`${wk}|${o.key}`]||0),backgroundColor:o.color,borderWidth:0}));
+  // Calculate max total to add headroom for labels
+  const maxTotal = Math.max(...weekKeys.map(wk=>ownerList.reduce((s,o)=>s+(grouped[`${wk}|${o.key}`]||0),0)),0);
+  const suggestedMax = maxTotal > 0 ? maxTotal * 1.18 : 10;
+  const plugin = mode==='eur' ? totalsPluginEur : totalsPluginCount;
   new Chart(document.getElementById(canvasId),{type:'bar',data:{labels:weekLabels,datasets},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
       scales:{x:{stacked:true,grid:{display:false},ticks:{color:'#888',font:{size:9}}},
-              y:{stacked:true,grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#888',font:{size:9},callback:v=>mode==='eur'?fmt(v):v}}}},
-    plugins:[totalsPluginEur]
+              y:{stacked:true,suggestedMax,grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#888',font:{size:9},callback:v=>mode==='eur'?fmt(v):v}}}},
+    plugins:[plugin]
   });
 }
 
