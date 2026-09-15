@@ -1,0 +1,1423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Amelia — Cash Collection v3</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f3;color:#1a1a1a;min-height:100vh}
+
+/* NAV */
+.topbar{background:#fff;border-bottom:0.5px solid #e0e0dc;padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:52px;position:sticky;top:0;z-index:100}
+.topbar-brand{font-size:14px;font-weight:600;color:#1a1a1a}
+.topbar-brand span{color:#089767}
+.nav-tabs{display:flex;gap:2px}
+.nav-tab{padding:6px 14px;font-size:12px;font-weight:500;border-radius:6px;cursor:pointer;border:none;background:transparent;color:#888;transition:all .15s}
+.nav-tab:hover{background:#f0efe9;color:#1a1a1a}
+.nav-tab.active{background:#1a1a1a;color:#fff}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.update-info{font-size:11px;color:#aaa}
+.badge{font-size:10px;padding:3px 8px;border-radius:5px}
+.badge-ok{background:#eaf3de;color:#3b6d11}
+.badge-loading{background:#fef4e0;color:#8a5a00}
+.badge-error{background:#fde2e2;color:#a01717}
+
+/* LAYOUT */
+.page{display:none;max-width:1100px;margin:0 auto;padding:20px}
+.page.active{display:block}
+.section-label{font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid #e0e0dc}
+.section-gap{margin-bottom:28px}
+.divider{height:1px;background:#e0e0dc;margin:24px 0}
+
+/* METRICS */
+.metrics{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.metric{background:#f0efe9;border-radius:8px;padding:12px 14px;flex:1;min-width:110px}
+.metric-label{font-size:10px;color:#888;margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em}
+.metric-value{font-size:20px;font-weight:600;color:#1a1a1a;line-height:1}
+.metric-value.loading{color:#ccc}
+.metric-sub{font-size:10px;color:#aaa;margin-top:3px}
+
+/* CARDS */
+.card{background:#fff;border:0.5px solid #e0e0dc;border-radius:10px;padding:14px;margin-bottom:10px}
+.card-title{font-size:12px;font-weight:500;margin-bottom:10px;color:#1a1a1a}
+.chart-row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.chart-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px}
+
+/* LEGENDS */
+.legend{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.leg-item{display:flex;align-items:center;gap:4px;font-size:10px;color:#666}
+.leg-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+
+/* TOP5 */
+.top5-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:16px}
+.top5-card{background:#fff;border:0.5px solid #e0e0dc;border-radius:10px;padding:12px}
+.top5-owner{font-size:10px;font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em}
+.top5-row{display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:0.5px solid #f0efe9}
+.top5-row:last-child{border-bottom:none}
+.top5-rank{font-size:10px;color:#bbb;width:12px;flex-shrink:0}
+.top5-name{font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.top5-amount{font-size:11px;font-weight:500;flex-shrink:0}
+
+/* SORTABLE TABLE */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{background:#f5f5f3;padding:8px 10px;text-align:left;font-size:10px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #e0e0dc;white-space:nowrap;cursor:pointer;user-select:none;position:relative}
+thead th:hover{background:#eee;color:#1a1a1a}
+thead th .sort-icon{margin-left:4px;opacity:.4;font-size:9px}
+thead th.sort-asc .sort-icon::after{content:'▲';opacity:1}
+thead th.sort-desc .sort-icon::after{content:'▼';opacity:1}
+thead th:not(.sort-asc):not(.sort-desc) .sort-icon::after{content:'⇅'}
+tbody td{padding:7px 10px;border-bottom:0.5px solid #f0efe9;color:#1a1a1a;vertical-align:middle}
+tbody tr:hover td{background:#fafaf8}
+tbody tr:last-child td{border-bottom:none}
+.td-mono{font-family:ui-monospace,monospace;font-size:11px;color:#555}
+.td-bold{font-weight:600}
+.td-red{color:#c0392b;font-weight:500}
+.td-gray{color:#888}
+.owner-chip{display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:2px 6px;border-radius:4px;background:#f0efe9;color:#1a1a1a;white-space:nowrap}
+.owner-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+
+/* FILTERS */
+.filters{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:flex-end}
+.filter-group{display:flex;flex-direction:column;gap:3px;flex:1;min-width:140px}
+.filter-label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.04em}
+.filter-input,.filter-select{padding:6px 10px;border:0.5px solid #e0e0dc;border-radius:6px;font-size:12px;background:#fff;outline:none;color:#1a1a1a}
+.filter-input:focus,.filter-select:focus{border-color:#1a1a1a}
+
+/* ACTIVITY */
+.act-row{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:0.5px solid #f0efe9}
+.act-row:last-child{border-bottom:none}
+.act-type{font-size:10px;padding:2px 6px;border-radius:4px;background:#f0efe9;color:#555;white-space:nowrap;flex-shrink:0}
+.act-type.csm{background:#fef4e0;color:#8a5a00}
+.act-type.reply{background:#e8f4fd;color:#185FA5}
+.act-type.phone{background:#eaf3de;color:#3b6d11}
+.act-type.check{background:#f3e8fd;color:#6b21a8}
+.act-desc{font-size:11px;color:#1a1a1a;flex:1;overflow:hidden}
+.act-desc .name{font-weight:500;margin-bottom:1px}
+.act-desc .detail{color:#888;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.act-date{font-size:10px;color:#aaa;flex-shrink:0;white-space:nowrap}
+
+/* OWNER FILTER BAR */
+.owner-filter-bar{display:flex;gap:5px;margin-bottom:16px;flex-wrap:wrap}
+.owner-btn{padding:4px 12px;border-radius:20px;border:0.5px solid #e0e0dc;font-size:11px;font-weight:500;cursor:pointer;background:#fff;color:#888;transition:all .15s}
+.owner-btn:hover{border-color:#1a1a1a;color:#1a1a1a}
+.owner-btn.active{color:#fff;border-color:transparent}
+
+/* REM BADGE */
+.rem-badge{font-size:10px;padding:2px 6px;border-radius:4px;background:#fef4e0;color:#8a5a00;white-space:nowrap}
+
+.empty{text-align:center;padding:28px;color:#aaa;font-size:12px}
+.tbl-count{font-size:11px;color:#aaa;margin-top:6px;text-align:right}
+
+@media(max-width:768px){
+  .chart-row-2,.chart-row-3{grid-template-columns:1fr}
+  .page{padding:12px}
+  .nav-tab{padding:5px 8px;font-size:11px}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-brand">Amelia <span>/</span> Cash Collection</div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('cockpit',this)">Cockpit</button>
+    <button class="nav-tab" onclick="showPage('invoices',this)">Per Invoice</button>
+    <button class="nav-tab" onclick="showPage('customers',this)">Per Customer</button>
+    <button class="nav-tab" onclick="showPage('activity',this)">Activity</button>
+    <button class="nav-tab" onclick="showPage('external',this)">External Collection</button>
+    <button class="nav-tab" onclick="showPage('templates',this)">Email Templates</button>
+  </div>
+  <div class="topbar-right">
+    <span class="update-info">Updated <span id="update-date"></span></span>
+    <span class="badge badge-loading" id="status-badge">Loading…</span>
+  </div>
+</div>
+
+<!-- ===================== COCKPIT ===================== -->
+<div id="page-cockpit" class="page active">
+
+  <!-- KPIs -->
+  <div class="section-gap">
+    <p class="section-label">Portfolio — Current Balance</p>
+    <div class="metrics">
+      <div class="metric"><p class="metric-label">Outstanding</p><p class="metric-value loading" id="m-outstanding">—</p><p class="metric-sub">EUR equiv.</p></div>
+      <div class="metric"><p class="metric-label">Open Invoices</p><p class="metric-value loading" id="m-invoices">—</p><p class="metric-sub">unpaid</p></div>
+      <div class="metric"><p class="metric-label">Customers</p><p class="metric-value loading" id="m-customers">—</p><p class="metric-sub">active</p></div>
+      <div class="metric"><p class="metric-label">Avg Days Overdue</p><p class="metric-value loading" id="m-overdue">—</p><p class="metric-sub">across portfolio</p></div>
+      <div class="metric"><p class="metric-label">Coverage 7d</p><p class="metric-value loading" id="m-coverage">—</p><p class="metric-sub" id="m-coverage-sub">customers contacted</p></div>
+    </div>
+
+    <!-- Row 1: 3 analysis pies -->
+    <div class="chart-row-3">
+      <div class="card">
+        <p class="card-title">Aging — invoice value (€)</p>
+        <div class="legend" id="pie-aging-legend"></div>
+        <div style="position:relative;height:140px"><canvas id="pie-aging"></canvas></div>
+      </div>
+      <div class="card">
+        <p class="card-title">Invoice amount brackets — nb of invoices</p>
+        <div class="legend" id="pie-amount-legend"></div>
+        <div style="position:relative;height:140px"><canvas id="pie-amount"></canvas></div>
+      </div>
+      <div class="card">
+        <p class="card-title">By country — invoice value (€)</p>
+        <div class="legend" id="pie-country-legend"></div>
+        <div style="position:relative;height:140px"><canvas id="pie-country"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Row 2: 3 owner pies -->
+    <div class="chart-row-3">
+      <div class="card">
+        <p class="card-title">Balance by owner (€)</p>
+        <div class="legend" id="pie-bal-legend"></div>
+        <div style="position:relative;height:140px"><canvas id="pie-bal"></canvas></div>
+      </div>
+      <div class="card">
+        <p class="card-title">Invoices by owner (count)</p>
+        <div class="legend" id="pie-inv-legend"></div>
+        <div style="position:relative;height:140px"><canvas id="pie-inv"></canvas></div>
+      </div>
+      <div class="card">
+        <p class="card-title">Customers by owner (count)</p>
+        <div class="legend" id="pie-cust-legend"></div>
+        <div style="position:relative;height:140px"><canvas id="pie-cust"></canvas></div>
+      </div>
+    </div>
+
+    <p class="section-label" style="margin-top:20px">Top 5 open debts by owner</p>
+    <div class="top5-grid" id="balance-top5"></div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- CASH COLLECTED -->
+  <div class="section-gap">
+    <p class="section-label">Cash Collected</p>
+    <div class="metrics">
+      <div class="metric"><p class="metric-label">MTD</p><p class="metric-value loading" id="m-cash-mtd">—</p><p class="metric-sub" id="m-cash-mtd-sub">—</p></div>
+      <div class="metric"><p class="metric-label">This Week</p><p class="metric-value loading" id="m-cash-week">—</p><p class="metric-sub" id="m-cash-week-sub">—</p></div>
+      <div class="metric"><p class="metric-label">Proactive MTD</p><p class="metric-value loading" id="m-proactive">—</p><p class="metric-sub" id="m-proactive-sub">—</p></div>
+      <div class="metric"><p class="metric-label">External MTD</p><p class="metric-value loading" id="m-external-mtd">—</p><p class="metric-sub" id="m-external-sub">—</p></div>
+    </div>
+    <div class="chart-row-2">
+      <div class="card">
+        <p class="card-title">Cash collected by owner — 3 months (€)</p>
+        <div class="legend" id="bar-cash-legend"></div>
+        <div style="position:relative;height:200px"><canvas id="bar-cash"></canvas></div>
+      </div>
+      <div class="card">
+        <p class="card-title">Proactive vs. automated — 3 months (€)</p>
+        <div class="legend" id="bar-proactive-legend"></div>
+        <div style="position:relative;height:200px"><canvas id="bar-proactive"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ACTIVITY COCKPIT -->
+  <div class="section-gap">
+    <p class="section-label">Activity</p>
+    <div class="metrics">
+      <div class="metric"><p class="metric-label">Calls Reached</p><p class="metric-value loading" id="ck-calls-ok">—</p><p class="metric-sub">last 7 days</p></div>
+      <div class="metric"><p class="metric-label">Calls No Answer</p><p class="metric-value loading" id="ck-calls-nok">—</p><p class="metric-sub">last 7 days</p></div>
+      <div class="metric"><p class="metric-label">Reminder Emails</p><p class="metric-value loading" id="ck-rem-emails">—</p><p class="metric-sub">last 7 days</p></div>
+      <div class="metric"><p class="metric-label">Outbound Emails</p><p class="metric-value loading" id="ck-out-emails">—</p><p class="metric-sub">last 7 days</p></div>
+    </div>
+    <div class="chart-row-2">
+      <div class="card">
+        <p class="card-title">Successful calls — weekly by owner</p>
+        <div class="legend" id="ck-phone-ok-legend"></div>
+        <div style="position:relative;height:140px"><canvas id="ck-phone-ok-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <p class="card-title">Unsuccessful calls — weekly by owner</p>
+        <div class="legend" id="ck-phone-nok-legend"></div>
+        <div style="position:relative;height:140px"><canvas id="ck-phone-nok-chart"></canvas></div>
+      </div>
+    </div>
+    <div class="chart-row-2">
+      <div class="card">
+        <p class="card-title">Outbound emails — weekly by owner</p>
+        <div class="legend" id="ck-email-legend"></div>
+        <div style="position:relative;height:140px"><canvas id="ck-email-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <p class="card-title">Reminder emails — weekly by owner</p>
+        <div class="legend" id="ck-rem-legend"></div>
+        <div style="position:relative;height:140px"><canvas id="ck-rem-chart"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== PER INVOICE ===================== -->
+<div id="page-invoices" class="page">
+  <div class="filters">
+    <div class="filter-group"><label class="filter-label">Owner</label>
+      <select class="filter-select" id="inv-f-owner" onchange="renderInvTable()"><option value="">All owners</option></select></div>
+    <div class="filter-group"><label class="filter-label">Country</label>
+      <select class="filter-select" id="inv-f-country" onchange="renderInvTable()"><option value="">All countries</option></select></div>
+    <div class="filter-group"><label class="filter-label">Invoice ID</label>
+      <input class="filter-input" id="inv-f-invoice" placeholder="SIB-SAS-ENT-…" oninput="renderInvTable()"></div>
+    <div class="filter-group"><label class="filter-label">Customer Name</label>
+      <input class="filter-input" id="inv-f-customer" placeholder="Search…" oninput="renderInvTable()"></div>
+  </div>
+  <div class="card" style="padding:0">
+    <div class="tbl-wrap">
+      <table id="inv-table">
+        <thead><tr>
+          <th onclick="sortTable('inv',0)" data-col="0">Invoice ID<span class="sort-icon"></span></th>
+          <th onclick="sortTable('inv',1)" data-col="1">Customer<span class="sort-icon"></span></th>
+          <th onclick="sortTable('inv',2)" data-col="2">Country<span class="sort-icon"></span></th>
+          <th onclick="sortTable('inv',3)" data-col="3">Balance (€)<span class="sort-icon"></span></th>
+          <th onclick="sortTable('inv',4)" data-col="4">Invoice Date<span class="sort-icon"></span></th>
+          <th onclick="sortTable('inv',5)" data-col="5">Due Date<span class="sort-icon"></span></th>
+          <th onclick="sortTable('inv',6)" data-col="6">Days Overdue<span class="sort-icon"></span></th>
+          <th onclick="sortTable('inv',7)" data-col="7">Owner<span class="sort-icon"></span></th>
+        </tr></thead>
+        <tbody id="inv-tbody"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <p class="tbl-count" id="inv-count"></p>
+</div>
+
+<!-- ===================== PER CUSTOMER ===================== -->
+<div id="page-customers" class="page">
+  <div class="filters">
+    <div class="filter-group"><label class="filter-label">Owner</label>
+      <select class="filter-select" id="cust-f-owner" onchange="renderCustTable()"><option value="">All owners</option></select></div>
+    <div class="filter-group"><label class="filter-label">Country</label>
+      <select class="filter-select" id="cust-f-country" onchange="renderCustTable()"><option value="">All countries</option></select></div>
+    <div class="filter-group"><label class="filter-label">Customer Name</label>
+      <input class="filter-input" id="cust-f-customer" placeholder="Search…" oninput="renderCustTable()"></div>
+  </div>
+  <div class="card" style="padding:0">
+    <div class="tbl-wrap">
+      <table id="cust-table">
+        <thead><tr>
+          <th onclick="sortTable('cust',0)" data-col="0">Customer<span class="sort-icon"></span></th>
+          <th onclick="sortTable('cust',1)" data-col="1">Country<span class="sort-icon"></span></th>
+          <th onclick="sortTable('cust',2)" data-col="2">Balance (€)<span class="sort-icon"></span></th>
+          <th onclick="sortTable('cust',3)" data-col="3">Invoices<span class="sort-icon"></span></th>
+          <th onclick="sortTable('cust',4)" data-col="4">Avg Days Overdue<span class="sort-icon"></span></th>
+          <th onclick="sortTable('cust',5)" data-col="5">Owner<span class="sort-icon"></span></th>
+        </tr></thead>
+        <tbody id="cust-tbody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <p class="tbl-count" id="cust-count"></p>
+</div>
+
+<!-- ===================== ACTIVITY ===================== -->
+<div id="page-activity" class="page">
+  <div class="owner-filter-bar" id="act-owner-bar"></div>
+  <div class="section-gap">
+    <div class="metrics">
+      <div class="metric"><p class="metric-label">Outstanding</p><p class="metric-value loading" id="act-outstanding">—</p><p class="metric-sub">EUR</p></div>
+      <div class="metric"><p class="metric-label">Open Invoices</p><p class="metric-value loading" id="act-invoices">—</p></div>
+      <div class="metric"><p class="metric-label">Customers</p><p class="metric-value loading" id="act-customers">—</p></div>
+      <div class="metric"><p class="metric-label">Avg Days Overdue</p><p class="metric-value loading" id="act-overdue">—</p></div>
+      <div class="metric"><p class="metric-label">Coverage 7d</p><p class="metric-value loading" id="act-coverage">—</p><p class="metric-sub" id="act-coverage-sub">contacted</p></div>
+      <div class="metric"><p class="metric-label">Pending Reminders</p><p class="metric-value loading" id="act-reminders">—</p></div>
+      <div class="metric"><p class="metric-label">Open Actions</p><p class="metric-value loading" id="act-actions">—</p></div>
+      <div class="metric"><p class="metric-label">Calls Reached</p><p class="metric-value loading" id="act-calls-ok">—</p><p class="metric-sub">last 7d</p></div>
+      <div class="metric"><p class="metric-label">Calls No Answer</p><p class="metric-value loading" id="act-calls-nok">—</p><p class="metric-sub">last 7d</p></div>
+      <div class="metric"><p class="metric-label">Reminder Emails</p><p class="metric-value loading" id="act-rem-emails">—</p><p class="metric-sub">last 7d</p></div>
+      <div class="metric"><p class="metric-label">Outbound Emails</p><p class="metric-value loading" id="act-out-emails">—</p><p class="metric-sub">last 7d</p></div>
+    </div>
+  </div>
+
+  <div class="chart-row-2" style="margin-bottom:16px">
+    <div>
+      <p class="section-label">Top 10 Reminders to Send</p>
+      <div class="card" style="padding:0"><div class="tbl-wrap"><table>
+        <thead><tr><th>Customer</th><th>REM</th><th>Balance</th><th>Language</th><th>Days waiting</th></tr></thead>
+        <tbody id="act-rem-body"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+      </table></div></div>
+    </div>
+    <div>
+      <p class="section-label">Top 10 Actions</p>
+      <div class="card" style="padding:0"><div class="tbl-wrap"><table>
+        <thead><tr><th>Customer</th><th>Type</th><th>Due</th><th>Source</th></tr></thead>
+        <tbody id="act-actions-body"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+      </table></div></div>
+    </div>
+  </div>
+
+  <div class="section-gap">
+    <p class="section-label">Top 10 Phone Calls</p>
+    <div class="card" style="padding:0"><div class="tbl-wrap"><table>
+      <thead><tr><th>Customer</th><th>Type</th><th>Date</th><th>Description</th></tr></thead>
+      <tbody id="act-calls-body"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+    </table></div></div>
+  </div>
+
+  <div class="section-gap">
+    <p class="section-label">Recent Actions (last 2 days)</p>
+    <div class="card" id="act-recent" style="padding:12px 16px"><p class="empty">Loading…</p></div>
+  </div>
+
+  <div class="chart-row-2">
+    <div class="card">
+      <p class="card-title">Successful calls — 15 days by owner</p>
+      <div class="legend" id="act-phone-legend-act"></div>
+      <div style="position:relative;height:160px"><canvas id="act-phone-chart"></canvas></div>
+    </div>
+    <div class="card">
+      <p class="card-title">Unsuccessful calls — 15 days by owner</p>
+      <div class="legend" id="act-phone-nok-legend-act"></div>
+      <div style="position:relative;height:160px"><canvas id="act-phone-nok-chart"></canvas></div>
+    </div>
+  </div>
+  <div class="chart-row-2">
+    <div class="card">
+      <p class="card-title">Outbound emails — 15 days by owner</p>
+      <div class="legend" id="act-email-legend-act"></div>
+      <div style="position:relative;height:160px"><canvas id="act-email-chart"></canvas></div>
+    </div>
+    <div class="card">
+      <p class="card-title">Reminder emails — 15 days by owner</p>
+      <div class="legend" id="act-rem-legend-act"></div>
+      <div style="position:relative;height:160px"><canvas id="act-rem-chart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== EXTERNAL COLLECTION ===================== -->
+<div id="page-external" class="page">
+  <div class="filters">
+    <div class="filter-group"><label class="filter-label">Owner</label>
+      <select class="filter-select" id="ext-f-owner" onchange="renderExtTable()"><option value="">All owners</option></select></div>
+    <div class="filter-group"><label class="filter-label">Customer Name</label>
+      <input class="filter-input" id="ext-f-customer" placeholder="Search…" oninput="renderExtTable()"></div>
+  </div>
+  <div class="card" style="padding:0">
+    <div class="tbl-wrap">
+      <table id="ext-table">
+        <thead><tr>
+          <th onclick="sortTable('ext',0)" data-col="0">Customer<span class="sort-icon"></span></th>
+          <th onclick="sortTable('ext',1)" data-col="1">Customer ID<span class="sort-icon"></span></th>
+          <th onclick="sortTable('ext',2)" data-col="2">Balance (€)<span class="sort-icon"></span></th>
+          <th onclick="sortTable('ext',3)" data-col="3">Invoices</th>
+          <th onclick="sortTable('ext',4)" data-col="4">Owner<span class="sort-icon"></span></th>
+          <th onclick="sortTable('ext',5)" data-col="5">Transferred<span class="sort-icon"></span></th>
+          <th>Reason</th>
+        </tr></thead>
+        <tbody id="ext-tbody"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <p class="tbl-count" id="ext-count"></p>
+</div>
+
+<!-- ===================== EMAIL TEMPLATES ===================== -->
+<div id="page-templates" class="page">
+
+  <style>
+  /* ---- Template explorer styles ---- */
+  .tmpl-toolbar{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;align-items:flex-end}
+  .tmpl-toolbar .filter-group{min-width:120px;flex:0 0 auto}
+
+  .rem-tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+  .rem-tab{padding:5px 14px;border-radius:20px;border:0.5px solid #e0e0dc;font-size:12px;font-weight:500;cursor:pointer;background:#fff;color:#888;transition:all .15s}
+  .rem-tab:hover{border-color:#1a1a1a;color:#1a1a1a}
+  .rem-tab.active{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+
+  .lang-tabs{display:flex;gap:5px;margin-bottom:14px;flex-wrap:wrap}
+  .lang-tab{padding:4px 11px;border-radius:6px;border:0.5px solid #e0e0dc;font-size:11px;font-weight:500;cursor:pointer;background:#fff;color:#888;transition:all .15s}
+  .lang-tab:hover{border-color:#089767;color:#089767}
+  .lang-tab.active{background:#089767;color:#fff;border-color:#089767}
+
+  .tmpl-card{background:#fff;border:0.5px solid #e0e0dc;border-radius:10px;overflow:hidden}
+  .tmpl-header{background:#f5f5f3;padding:12px 16px;border-bottom:0.5px solid #e0e0dc;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .tmpl-header-subject{font-size:12px;font-weight:600;color:#1a1a1a;flex:1}
+  .tmpl-meta{font-size:10px;color:#aaa}
+  .tmpl-toggle-btn{font-size:11px;padding:3px 10px;border-radius:5px;border:0.5px solid #e0e0dc;background:#fff;cursor:pointer;color:#555;white-space:nowrap}
+  .tmpl-toggle-btn:hover{background:#f0efe9}
+
+  .tmpl-body-wrap{padding:16px;display:none}
+  .tmpl-body-wrap.open{display:block}
+
+  .tmpl-preview{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;line-height:1.6;color:#1a1a1a;border:0.5px solid #e8e8e4;border-radius:8px;padding:20px 24px;background:#fff;max-width:620px}
+  .tmpl-preview p{margin:0 0 10px 0}
+  .tmpl-preview p:last-child{margin-bottom:0}
+  .tmpl-preview ul{margin:4px 0 10px 0;padding-left:20px}
+  .tmpl-preview li{margin-bottom:4px}
+
+  .tmpl-pill{display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:500}
+  .tmpl-pill-rem{background:#fef4e0;color:#8a5a00}
+  .tmpl-pill-lang{background:#e8f4fd;color:#185FA5}
+  .tmpl-pill-multi{background:#eaf3de;color:#3b6d11}
+  .tmpl-empty{text-align:center;padding:40px;color:#aaa;font-size:13px}
+  .tmpl-nav-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+  .tmpl-count-label{font-size:11px;color:#aaa}
+  </style>
+
+  <div class="section-gap">
+    <p class="section-label">Reminder Email Templates</p>
+
+    <!-- REM level tabs -->
+    <div style="margin-bottom:6px;font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.06em">Reminder level</div>
+    <div class="rem-tabs" id="rem-tabs">
+      <button class="rem-tab active" onclick="setRemTab(0,this)">REM 0 — First notice</button>
+      <button class="rem-tab" onclick="setRemTab(1,this)">REM 1 — Follow-up</button>
+      <button class="rem-tab" onclick="setRemTab(2,this)">REM 2 — Urgent</button>
+      <button class="rem-tab" onclick="setRemTab(3,this)">REM 3 — Firm</button>
+      <button class="rem-tab" onclick="setRemTab(4,this)">REM 4 — Suspension notice</button>
+      <button class="rem-tab" onclick="setRemTab(5,this)">REM 5 — Final warning</button>
+    </div>
+
+    <!-- Language tabs -->
+    <div style="margin-bottom:6px;font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.06em">Language</div>
+    <div class="lang-tabs" id="lang-tabs">
+      <button class="lang-tab active" onclick="setLangTab('French',this)">🇫🇷 French</button>
+      <button class="lang-tab" onclick="setLangTab('English',this)">🇬🇧 English</button>
+      <button class="lang-tab" onclick="setLangTab('Italian',this)">🇮🇹 Italian</button>
+      <button class="lang-tab" onclick="setLangTab('Spanish',this)">🇪🇸 Spanish</button>
+      <button class="lang-tab" onclick="setLangTab('German',this)">🇩🇪 German</button>
+      <button class="lang-tab" onclick="setLangTab('Portuguese',this)">🇵🇹 Portuguese</button>
+    </div>
+
+    <!-- Multi toggle -->
+    <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center">
+      <span style="font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.06em">Version</span>
+      <button id="multi-toggle" onclick="toggleMulti()" style="padding:4px 12px;border-radius:6px;border:0.5px solid #e0e0dc;font-size:11px;cursor:pointer;background:#fff;color:#555;transition:all .15s">
+        Single invoice
+      </button>
+    </div>
+
+    <!-- Template display -->
+    <div id="tmpl-display">
+      <div class="tmpl-empty">Loading templates…</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ CONFIG ============
+const SUPABASE_URL = 'https://fqcxdcjfkrnnwqcriiah.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_UplxuS6aYIWvCE66nE1Upg_CtiQoNOZ';
+
+// ============ OWNERS ============
+const owners = [
+  {key:'camille.toutain@brevo.com',        label:'Camille',   color:'#993C1D'},
+  {key:'jessica.szabla@brevo.com',         label:'Jessica',   color:'#534AB7'},
+  {key:'amal.habacha@brevo.com',           label:'Amal',      color:'#185FA5'},
+  {key:'shikhar.singh2@brevo.com',         label:'Shikhar',   color:'#0F6E56'},
+  {key:'rajat.ghanghoria@brevo.com',       label:'Rajat',     color:'#1D9E75'},
+  {key:'nicolas.lanique@brevo.com',        label:'Nicolas',   color:'#854F0B'},
+  {key:'alejandro.labidiburgos@brevo.com', label:'Alejandro', color:'#BA7517'},
+  {key:'michele.ramella.cravaro@brevo.com',label:'Michele',   color:'#7A2E7A'},
+  {key:'non_assigned',                     label:'Other',     color:'#B4B2A9'},
+];
+const ownerLabel = k => (owners.find(o=>o.key===k)||{label:k||'—'}).label;
+const ownerColor = k => (owners.find(o=>o.key===k)||{color:'#888'}).color;
+
+// ============ HELPERS ============
+const fx = {EUR:1,USD:0.91,GBP:1.17,CHF:1.05,CAD:0.67,BRL:0.16,INR:0.011,MXN:0.05,CLP:0.001};
+const toEur = (b,c) => (parseFloat(b)||0)*(fx[c]||1);
+const fmt = v => v>=1e6?'€'+(v/1e6).toFixed(1)+'M':v>=1000?'€'+(v/1000).toFixed(0)+'k':'€'+Math.round(v).toLocaleString();
+const fmtDate = s => s?new Date(s).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}):'—';
+const toISO = d => d.toISOString().slice(0,10);
+const today = new Date();
+const daysOver = due => due?Math.max(0,Math.floor((today-new Date(due))/86400000)):0;
+const escape = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const mondayOf = d => { const day=d.getDay(),m=new Date(d);m.setDate(m.getDate()-(day===0?6:day-1));m.setHours(0,0,0,0);return m; };
+const weekLabel = iso => new Date(iso).toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+const weekOf = s => toISO(mondayOf(new Date(s)));
+const monthStart = d => new Date(d.getFullYear(),d.getMonth(),1);
+
+// Build last 13 weeks (3 months)
+function build13Weeks() {
+  const thisMon=mondayOf(new Date()),wks=[];
+  for(let i=12;i>=0;i--){const m=new Date(thisMon);m.setDate(m.getDate()-7*i);wks.push(toISO(m));}
+  return wks;
+}
+
+// Last 10 days
+function last10Days() {
+  const days=[];
+  for(let i=9;i>=0;i--){const d=new Date(today);d.setDate(d.getDate()-i);days.push(toISO(d));}
+  return days;
+}
+
+// Extract country — maps language+currency+invoice prefix to country name
+function extractCountry(r) {
+  // Invoice prefix takes priority (most reliable)
+  if(r.invoice_id){
+    if(r.invoice_id.startsWith('SIB-GMBH')) return 'Germany';
+    if(r.invoice_id.startsWith('SIB-INC')) return 'USA';
+    if(r.invoice_id.startsWith('SIB-SAS')) {
+      // SAS = France entity, but customer may be other country — use language next
+    }
+  }
+  // Language
+  if(r.language_email==='French') return 'France';
+  if(r.language_email==='German') return 'Germany';
+  if(r.language_email==='Spanish') return 'Spain';
+  if(r.language_email==='Italian') return 'Italy';
+  if(r.language_email==='Portuguese') return 'Portugal';
+  // Currency fallback
+  if(r.currency==='GBP') return 'UK';
+  if(r.currency==='USD') return 'USA';
+  if(r.currency==='CAD') return 'Canada';
+  if(r.currency==='BRL') return 'Brazil';
+  if(r.currency==='INR') return 'India';
+  if(r.currency==='MXN') return 'Mexico';
+  if(r.currency==='CLP') return 'Chile';
+  if(r.currency==='CHF') return 'Switzerland';
+  // Default
+  return 'Other';
+}
+
+// ============ SUPABASE ============
+async function sbFetch(path) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`,{
+    headers:{apikey:SUPABASE_ANON_KEY,Authorization:`Bearer ${SUPABASE_ANON_KEY}`}
+  });
+  if(!res.ok) throw new Error(`SB error ${res.status}: ${path}`);
+  return res.json();
+}
+
+// ============ STATE ============
+let gEngine=[], gHistory=[], gAction=[], gExternal=[], gReminders=[], gEmailStats=[], gDoneActions=[];
+let gActOwner=null;
+let invSortCol=-1, invSortDir=1;
+let custSortCol=-1, custSortDir=1;
+let extSortCol=-1, extSortDir=1;
+let gInvRows=[], gCustRows=[], gExtRows=[];
+
+// ============ NAV ============
+function showPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  if(btn) btn.classList.add('active');
+  if(id === 'templates' && !gTemplates.length) loadTemplates();
+}
+
+// ============ LOAD ============
+async function loadAll() {
+  document.getElementById('update-date').textContent = today.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+  const badge = document.getElementById('status-badge');
+  try {
+    const weekKeys13 = build13Weeks();
+    const histStart = weekKeys13[0];
+    const mtdStart = toISO(monthStart(today));
+    const sevenDaysAgo = toISO(new Date(today.getTime()-7*86400000));
+
+    [gEngine, gHistory, gAction, gExternal, gReminders, gEmailStats, gDoneActions] = await Promise.all([
+      sbFetch('engine?invoice_status=in.(not paid,not_paid,payment_due)&select=invoice_id,customer_id,customer_name,balance,currency,due_date,invoice_date,owner,language_email&limit=10000'),
+      sbFetch(`collection_history?created_at=gte.${histStart}&select=customer_id,customer_name,balance,currency,created_at,owner&limit=10000`),
+      sbFetch(`action_queue?status=eq.pending&select=invoice_id,customer_id,action_type,description,source,due_date,created_at&limit=10000`),
+      sbFetch(`external_collection?select=customer_id,customer_name,invoice_id,balance,currency,transferred_at,owner,tag_provision_chargebee,actions_history&limit=2000`),
+      sbFetch(`reminder_queue?status=eq.draft&select=invoice_id,customer_id,reminder_num,language,balance,currency,created_at&order=balance.desc&limit=1000`),
+      sbFetch(`daily_email_stats?stat_date=gte.${histStart}&select=stat_date,owner,category,direction,nb_emails&limit=50000`),
+      sbFetch(`action_queue?status=eq.done&created_at=gte.${histStart}&action_type=in.(phone_followup,phone_call_log)&select=invoice_id,customer_id,action_type,description,created_at&order=created_at.desc&limit=5000`),
+    ]);
+
+    renderCockpit(weekKeys13, mtdStart, sevenDaysAgo);
+    populateFilters();
+    buildInvRows(); renderInvTable();
+    buildCustRows(); renderCustTable();
+    buildExtRows(); renderExtTable();
+    renderActivityOwnerFilter();
+    renderActivity(null, sevenDaysAgo);
+
+    badge.textContent='Live data'; badge.className='badge badge-ok';
+  } catch(err) {
+    console.error(err);
+    badge.textContent='Fetch error'; badge.className='badge badge-error';
+  }
+}
+
+// ============ COCKPIT ============
+function renderCockpit(weekKeys, mtdStart, sevenDaysAgo) {
+  // --- Portfolio KPIs ---
+  let totalEur=0; const custSet=new Set(); let daysSum=0,daysCount=0;
+  const byOwnerBal={}, byOwnerInv={}, byOwnerCust={};
+  const bySeniority={'0–30d':0,'31–60d':0,'61–90d':0,'90d+':0};
+  // byAmount counts NUMBER OF INVOICES per bracket (not value)
+  const byAmount={'<1k€':0,'1k–5k€':0,'5k–25k€':0,'25k–100k€':0,'>100k€':0};
+  // byCountry counts invoice VALUE in EUR per country
+  const byCountry={};
+  const byCustomer={};
+
+  gEngine.forEach(r=>{
+    const eur=toEur(r.balance,r.currency);
+    totalEur+=eur; custSet.add(r.customer_id);
+    const ok=r.owner||'non_assigned';
+    byOwnerBal[ok]=(byOwnerBal[ok]||0)+eur;
+    byOwnerInv[ok]=(byOwnerInv[ok]||0)+1;
+    if(r.due_date){const d=daysOver(r.due_date);daysSum+=d;daysCount++;
+      if(d<=30)bySeniority['0–30d']+=eur;else if(d<=60)bySeniority['31–60d']+=eur;else if(d<=90)bySeniority['61–90d']+=eur;else bySeniority['90d+']+=eur;}
+    // Count invoices per bracket (nb, not value)
+    if(eur<1000)byAmount['<1k€']++;else if(eur<5000)byAmount['1k–5k€']++;else if(eur<25000)byAmount['5k–25k€']++;else if(eur<100000)byAmount['25k–100k€']++;else byAmount['>100k€']++;
+    const country=extractCountry(r);
+    byCountry[country]=(byCountry[country]||0)+eur;
+    if(!byCustomer[r.customer_id])byCustomer[r.customer_id]={name:r.customer_name||r.customer_id,ownerKey:ok,sumEur:0};
+    byCustomer[r.customer_id].sumEur+=eur;
+  });
+  Object.values(byCustomer).forEach(c=>{byOwnerCust[c.ownerKey]=(byOwnerCust[c.ownerKey]||0)+1;});
+
+  // Coverage 7d
+  const contactedCusts=new Set();
+  gDoneActions.filter(a=>a.created_at.slice(0,10)>=sevenDaysAgo).forEach(a=>contactedCusts.add(a.customer_id));
+  gEmailStats.filter(s=>s.stat_date>=sevenDaysAgo&&s.direction==='outbound'&&s.category==='B').forEach(s=>{
+    // find customer via engine
+    gEngine.forEach(e=>{if(e.owner===s.owner)contactedCusts.add(e.customer_id);});
+  });
+  const coveragePct=custSet.size?Math.round(contactedCusts.size/custSet.size*100):0;
+
+  setText('m-outstanding', fmt(totalEur));
+  setText('m-invoices', gEngine.length);
+  setText('m-customers', custSet.size);
+  setText('m-overdue', daysCount?Math.round(daysSum/daysCount)+'d':'—');
+  setText('m-coverage', coveragePct+'%');
+  document.getElementById('m-coverage-sub').textContent=`${contactedCusts.size}/${custSet.size} customers`;
+
+  // Pie: aging
+  const senBuckets=['0–30d','31–60d','61–90d','90d+'], senColors=['#1D9E75','#378ADD','#BA7517','#E24B4A'];
+  buildDoughnut('pie-aging','pie-aging-legend',senBuckets.map((b,i)=>({label:b,color:senColors[i],v:bySeniority[b]})),fmt);
+
+  // Pie: amount distribution — shows NUMBER of invoices per bracket
+  const amtBuckets=['<1k€','1k–5k€','5k–25k€','25k–100k€','>100k€'], amtColors=['#B4B2A9','#378ADD','#BA7517','#993C1D','#E24B4A'];
+  buildDoughnut('pie-amount','pie-amount-legend',amtBuckets.map((b,i)=>({label:b,color:amtColors[i],v:byAmount[b]})),v=>v+' inv');
+
+  // Pie: country (top 8) — shows invoice VALUE in EUR
+  const topCountries=Object.entries(byCountry).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const ctryColors=['#1D9E75','#185FA5','#993C1D','#BA7517','#534AB7','#854F0B','#7A2E7A','#B4B2A9'];
+  buildDoughnut('pie-country','pie-country-legend',topCountries.map(([c,v],i)=>({label:c,color:ctryColors[i]||'#ccc',v})),fmt);
+
+  // Pie: owner rows
+  const validOwners=owners.filter(o=>o.key!=='non_assigned');
+  buildDoughnut('pie-bal','pie-bal-legend',validOwners.filter(o=>byOwnerBal[o.key]).map(o=>({label:o.label,color:o.color,v:byOwnerBal[o.key]})),fmt);
+  buildDoughnut('pie-inv','pie-inv-legend',validOwners.filter(o=>byOwnerInv[o.key]).map(o=>({label:o.label,color:o.color,v:byOwnerInv[o.key]})),v=>v+' inv');
+  buildDoughnut('pie-cust','pie-cust-legend',validOwners.filter(o=>byOwnerCust[o.key]).map(o=>({label:o.label,color:o.color,v:byOwnerCust[o.key]})),v=>v+' cust');
+
+  // Top5
+  const top5El=document.getElementById('balance-top5'); top5El.innerHTML='';
+  validOwners.forEach(o=>{
+    const custs=Object.values(byCustomer).filter(c=>c.ownerKey===o.key).sort((a,b)=>b.sumEur-a.sumEur).slice(0,5);
+    if(!custs.length)return;
+    top5El.innerHTML+=`<div class="top5-card"><p class="top5-owner" style="color:${o.color}">${o.label}</p>${custs.map((c,i)=>`<div class="top5-row"><span class="top5-rank">${i+1}</span><span class="top5-name">${escape(c.name)}</span><span class="top5-amount">${fmt(c.sumEur)}</span></div>`).join('')}</div>`;
+  });
+
+  // Cash collected charts
+  renderCashCharts(weekKeys, mtdStart);
+
+  // Activity cockpit
+  renderCockpitActivity(sevenDaysAgo);
+}
+
+function renderCashCharts(weekKeys, mtdStart) {
+  // MTD & week KPIs
+  const thisWeekMon=toISO(mondayOf(today));
+  let mtdEur=0,mtdCount=0,weekEur=0,weekCount=0;
+  gHistory.forEach(r=>{
+    const eur=toEur(r.balance,r.currency),d=r.created_at.slice(0,10);
+    if(d>=mtdStart){mtdEur+=eur;mtdCount++;}
+    if(d>=thisWeekMon){weekEur+=eur;weekCount++;}
+  });
+  const extMtd=gExternal.filter(r=>r.transferred_at&&r.transferred_at.slice(0,10)>=mtdStart).reduce((s,r)=>s+toEur(r.balance,r.currency),0);
+  
+  // Proactive %
+  const proactiveSrc=['manual','contact_activity','missing_action_recovery','slack_reader'];
+  const proCusts=new Set();
+  gAction.forEach(a=>{if(proactiveSrc.some(s=>(a.source||'').includes(s)))proCusts.add(a.customer_id);});
+  const mtdCusts=new Set(gHistory.filter(r=>r.created_at.slice(0,10)>=mtdStart).map(r=>r.customer_id));
+  const proCount=[...mtdCusts].filter(c=>proCusts.has(c)).length;
+  const pct=mtdCusts.size?Math.round(proCount/mtdCusts.size*100):0;
+
+  setText('m-cash-mtd',fmt(mtdEur)); document.getElementById('m-cash-mtd-sub').textContent=`${mtdCount} invoices`;
+  setText('m-cash-week',fmt(weekEur)); document.getElementById('m-cash-week-sub').textContent=`${weekCount} invoices`;
+  setText('m-proactive',pct+'%'); document.getElementById('m-proactive-sub').textContent=`${proCount}/${mtdCusts.size} customers`;
+  setText('m-external-mtd',fmt(extMtd));
+
+  // Cash by owner weekly (all owners including non_assigned)
+  const cashGrouped={};
+  gHistory.forEach(r=>{
+    const wk=weekOf(r.created_at.slice(0,10));
+    if(!weekKeys.includes(wk))return;
+    const ok=r.owner||'non_assigned';
+    cashGrouped[`${wk}|${ok}`]=(cashGrouped[`${wk}|${ok}`]||0)+toEur(r.balance,r.currency);
+  });
+  const weekLabels=weekKeys.map(weekLabel);
+  buildStackedBar('bar-cash','bar-cash-legend',weekKeys,weekLabels,cashGrouped,'eur',true);
+
+  // Proactive vs automated
+  const proActCusts=new Set();
+  gDoneActions.forEach(a=>proActCusts.add(a.customer_id));
+  gEmailStats.filter(s=>s.direction==='outbound'&&s.category==='B').forEach(s=>{
+    gEngine.filter(e=>e.owner===s.owner).forEach(e=>proActCusts.add(e.customer_id));
+  });
+
+  const proGrouped={}, autoGrouped={};
+  gHistory.forEach(r=>{
+    const wk=weekOf(r.created_at.slice(0,10));
+    if(!weekKeys.includes(wk))return;
+    const eur=toEur(r.balance,r.currency);
+    if(proActCusts.has(r.customer_id))proGrouped[wk]=(proGrouped[wk]||0)+eur;
+    else autoGrouped[wk]=(autoGrouped[wk]||0)+eur;
+  });
+
+  destroyChart('bar-proactive');
+  document.getElementById('bar-proactive-legend').innerHTML=`<span class="leg-item"><span class="leg-dot" style="background:#089767"></span>Proactive</span><span class="leg-item"><span class="leg-dot" style="background:#B4B2A9"></span>Automated/Spontaneous</span>`;
+  new Chart(document.getElementById('bar-proactive'),{
+    type:'bar',
+    data:{labels:weekLabels,datasets:[
+      {label:'Proactive',data:weekKeys.map(w=>proGrouped[w]||0),backgroundColor:'#089767',borderWidth:0},
+      {label:'Automated',data:weekKeys.map(w=>autoGrouped[w]||0),backgroundColor:'#B4B2A9',borderWidth:0},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{stacked:true,grid:{display:false},ticks:{color:'#888',font:{size:9}}},
+              y:{stacked:true,grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#888',font:{size:9},callback:v=>fmt(v)}}}},
+    plugins:[totalsPluginEur]
+  });
+}
+
+function renderCockpitActivity(sevenDaysAgo) {
+  const NO_ANSWER_PATTERNS = ['no reply','no answer','no one picked up','no pickup','not responsible','no response','unresponsive'];
+  const isNoAnswer = desc => NO_ANSWER_PATTERNS.some(p => (desc||'').toLowerCase().includes(p));
+
+  // KPIs — last 7 days, dedup: 1 per customer per day per category
+  const seenKpi = new Set();
+  let callsOk=0, callsNok=0;
+  gDoneActions.filter(a=>a.created_at.slice(0,10)>=sevenDaysAgo).forEach(a=>{
+    const cat=isNoAnswer(a.description)?'nok':'ok';
+    const key=`${a.customer_id}|${a.created_at.slice(0,10)}|${cat}`;
+    if(seenKpi.has(key)) return;
+    seenKpi.add(key);
+    if(cat==='nok') callsNok++; else callsOk++;
+  });
+  const remEmails = gEmailStats.filter(s=>s.stat_date>=sevenDaysAgo&&s.category==='A'&&s.direction==='outbound').reduce((s,r)=>s+(r.nb_emails||0),0);
+  const outEmails = gEmailStats.filter(s=>s.stat_date>=sevenDaysAgo&&s.category==='B'&&s.direction==='outbound').reduce((s,r)=>s+(r.nb_emails||0),0);
+
+  setText('ck-calls-ok',callsOk); setText('ck-calls-nok',callsNok);
+  setText('ck-rem-emails',remEmails); setText('ck-out-emails',outEmails);
+
+  // Charts — weekly, 3 months (13 weeks), stacked by owner
+  const weekKeys = build13Weeks();
+  const weekLabels = weekKeys.map(weekLabel);
+
+  // Dedup: 1 action per customer per day per category
+  // Build a Set of unique keys: "customer_id|date|ok/nok"
+  const phoneOkGrouped = {}, phoneNokGrouped = {}, emailGrouped = {}, remGrouped = {};
+  const seenPhone = new Set();
+
+  gDoneActions.forEach(a => {
+    const wk = weekOf(a.created_at.slice(0,10));
+    if(!weekKeys.includes(wk)) return;
+    const noAns = isNoAnswer(a.description);
+    const cat = noAns ? 'nok' : 'ok';
+    // Dedup key: 1 per customer per day per category
+    const dedupKey = `${a.customer_id}|${a.created_at.slice(0,10)}|${cat}`;
+    if(seenPhone.has(dedupKey)) return;
+    seenPhone.add(dedupKey);
+
+    const match = (a.description||'').match(/\(by ([^)]+)\)/);
+    const ownerEmail = match ? match[1].trim() : null;
+    const ownerFromDesc = ownerEmail && owners.find(o=>o.key===ownerEmail);
+    const eng = !ownerFromDesc ? gEngine.find(e => e.customer_id === a.customer_id) : null;
+    const ok = ownerFromDesc ? ownerEmail : (eng && eng.owner) || 'non_assigned';
+
+    if(noAns) phoneNokGrouped[`${wk}|${ok}`]=(phoneNokGrouped[`${wk}|${ok}`]||0)+1;
+    else phoneOkGrouped[`${wk}|${ok}`]=(phoneOkGrouped[`${wk}|${ok}`]||0)+1;
+  });
+
+  gEmailStats.filter(s=>s.direction==='outbound'&&s.category==='B').forEach(s=>{
+    const wk=weekOf(s.stat_date);
+    if(!weekKeys.includes(wk)) return;
+    const ok=s.owner||'non_assigned';
+    emailGrouped[`${wk}|${ok}`]=(emailGrouped[`${wk}|${ok}`]||0)+(s.nb_emails||0);
+  });
+
+  gEmailStats.filter(s=>s.direction==='outbound'&&s.category==='A').forEach(s=>{
+    const wk=weekOf(s.stat_date);
+    if(!weekKeys.includes(wk)) return;
+    const ok=s.owner||'non_assigned';
+    remGrouped[`${wk}|${ok}`]=(remGrouped[`${wk}|${ok}`]||0)+(s.nb_emails||0);
+  });
+
+  buildStackedBar('ck-phone-ok-chart','ck-phone-ok-legend',weekKeys,weekLabels,phoneOkGrouped,'count',false);
+  buildStackedBar('ck-phone-nok-chart','ck-phone-nok-legend',weekKeys,weekLabels,phoneNokGrouped,'count',false);
+  buildStackedBar('ck-email-chart','ck-email-legend',weekKeys,weekLabels,emailGrouped,'count',false);
+  buildStackedBar('ck-rem-chart','ck-rem-legend',weekKeys,weekLabels,remGrouped,'count',false);
+}
+
+// ============ FILTERS POPULATION ============
+function populateFilters() {
+  const ownerSet=[...new Set(gEngine.map(r=>r.owner).filter(Boolean))];
+  const countrySet=[...new Set(gEngine.map(r=>extractCountry(r)))].sort();
+
+  ['inv-f-owner','cust-f-owner','ext-f-owner'].forEach(id=>{
+    const sel=document.getElementById(id); if(!sel)return;
+    sel.innerHTML='<option value="">All owners</option>';
+    owners.filter(o=>ownerSet.includes(o.key)).forEach(o=>sel.innerHTML+=`<option value="${o.key}">${o.label}</option>`);
+  });
+  ['inv-f-country','cust-f-country'].forEach(id=>{
+    const sel=document.getElementById(id); if(!sel)return;
+    sel.innerHTML='<option value="">All countries</option>';
+    countrySet.forEach(c=>sel.innerHTML+=`<option value="${c}">${escape(c)}</option>`);
+  });
+}
+
+// ============ INVOICE TABLE ============
+function buildInvRows() {
+  gInvRows = gEngine.map(r=>({
+    invoice_id: r.invoice_id,
+    customer_name: r.customer_name||r.customer_id,
+    country: extractCountry(r),
+    balanceEur: toEur(r.balance,r.currency),
+    invoice_date: r.invoice_date,
+    due_date: r.due_date,
+    daysOverdue: daysOver(r.due_date),
+    owner: r.owner||'non_assigned',
+  }));
+}
+
+function renderInvTable() {
+  const ownerF=document.getElementById('inv-f-owner').value;
+  const countryF=document.getElementById('inv-f-country').value;
+  const invF=document.getElementById('inv-f-invoice').value.toLowerCase();
+  const custF=document.getElementById('inv-f-customer').value.toLowerCase();
+
+  let rows=gInvRows.filter(r=>{
+    if(ownerF&&r.owner!==ownerF)return false;
+    if(countryF&&r.country!==countryF)return false;
+    if(invF&&!r.invoice_id.toLowerCase().includes(invF))return false;
+    if(custF&&!r.customer_name.toLowerCase().includes(custF))return false;
+    return true;
+  });
+
+  if(invSortCol>=0) rows=sortRows(rows,invSortCol,invSortDir,'inv');
+  else rows=[...rows].sort((a,b)=>b.balanceEur-a.balanceEur);
+
+  const tbody=document.getElementById('inv-tbody');
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="8" class="empty">No results</td></tr>';return;}
+  tbody.innerHTML=rows.slice(0,500).map(r=>{
+    const dc=r.daysOverdue>90?'td-red':r.daysOverdue>30?'td-bold':'';
+    return `<tr>
+      <td class="td-mono">${escape(r.invoice_id)}</td>
+      <td class="td-bold">${escape(r.customer_name)}</td>
+      <td class="td-gray">${escape(r.country)}</td>
+      <td class="td-bold">${fmt(r.balanceEur)}</td>
+      <td class="td-gray">${fmtDate(r.invoice_date)}</td>
+      <td class="td-gray">${fmtDate(r.due_date)}</td>
+      <td class="${dc}">${r.daysOverdue>0?r.daysOverdue+'d':'—'}</td>
+      <td><span class="owner-chip"><span class="owner-dot" style="background:${ownerColor(r.owner)}"></span>${ownerLabel(r.owner)}</span></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('inv-count').textContent=`${rows.length} invoices${rows.length>500?' (showing first 500)':''}`;
+}
+
+// ============ CUSTOMER TABLE ============
+function buildCustRows() {
+  const byCust={};
+  gEngine.forEach(r=>{
+    if(!byCust[r.customer_id])byCust[r.customer_id]={customer_id:r.customer_id,name:r.customer_name||r.customer_id,country:extractCountry(r),owner:r.owner||'non_assigned',totalEur:0,nb:0,daysSum:0,daysCount:0};
+    const c=byCust[r.customer_id];
+    c.totalEur+=toEur(r.balance,r.currency); c.nb++;
+    if(r.due_date){c.daysSum+=daysOver(r.due_date);c.daysCount++;}
+  });
+  gCustRows=Object.values(byCust).map(c=>({...c,avgDays:c.daysCount?Math.round(c.daysSum/c.daysCount):0}));
+}
+
+function renderCustTable() {
+  const ownerF=document.getElementById('cust-f-owner').value;
+  const countryF=document.getElementById('cust-f-country').value;
+  const custF=document.getElementById('cust-f-customer').value.toLowerCase();
+
+  let rows=gCustRows.filter(r=>{
+    if(ownerF&&r.owner!==ownerF)return false;
+    if(countryF&&r.country!==countryF)return false;
+    if(custF&&!r.name.toLowerCase().includes(custF))return false;
+    return true;
+  });
+
+  if(custSortCol>=0) rows=sortRows(rows,custSortCol,custSortDir,'cust');
+  else rows=[...rows].sort((a,b)=>b.totalEur-a.totalEur);
+
+  const tbody=document.getElementById('cust-tbody');
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="6" class="empty">No results</td></tr>';return;}
+  tbody.innerHTML=rows.slice(0,300).map(r=>{
+    const dc=r.avgDays>90?'td-red':r.avgDays>30?'td-bold':'';
+    return `<tr>
+      <td class="td-bold">${escape(r.name)}</td>
+      <td class="td-gray">${escape(r.country)}</td>
+      <td class="td-bold">${fmt(r.totalEur)}</td>
+      <td>${r.nb}</td>
+      <td class="${dc}">${r.avgDays>0?r.avgDays+'d':'—'}</td>
+      <td><span class="owner-chip"><span class="owner-dot" style="background:${ownerColor(r.owner)}"></span>${ownerLabel(r.owner)}</span></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('cust-count').textContent=`${rows.length} customers${rows.length>300?' (showing first 300)':''}`;
+}
+
+// ============ EXTERNAL COLLECTION TABLE ============
+function buildExtRows() {
+  const byCust={};
+  gExternal.forEach(r=>{
+    if(!byCust[r.customer_id])byCust[r.customer_id]={
+      customer_id:r.customer_id,
+      name:r.customer_name||r.customer_id,
+      owner:r.owner||'non_assigned',
+      totalEur:0,
+      invoices:[],
+      transferred_at:r.transferred_at,
+      reason:'—'
+    };
+    const c=byCust[r.customer_id];
+    c.totalEur+=toEur(r.balance,r.currency);
+
+    // Collect invoice_id (the actual invoice identifier)
+    if(r.invoice_id&&!c.invoices.includes(String(r.invoice_id)))
+      c.invoices.push(String(r.invoice_id));
+
+    // Extract reason from actions_history
+    if(r.actions_history){
+      // Pattern 1: explicit "Reason: ..." in transfer action
+      let match=r.actions_history.match(/Reason:\s*([^.,\]\/]+)/i);
+      if(match){
+        const reason=match[1].trim();
+        if(reason&&reason!=='unknown'&&reason!=='true'&&reason!=='false')
+          c.reason=reason;
+      }
+      // Pattern 2: BLOCKER description mentioning transfer
+      if(c.reason==='—'){
+        match=r.actions_history.match(/BLOCKER:\s*([^.]+\.)/i);
+        if(match) c.reason=match[1].trim().slice(0,120);
+      }
+      // Pattern 3: last csm_context or check_payment_date description
+      if(c.reason==='—'){
+        const descs=[...r.actions_history.matchAll(/description:([^,/]+(?:,(?!\s*due_date)[^,/]+)*)/gi)];
+        if(descs.length){
+          const last=descs[descs.length-1][1].trim();
+          if(last.length>10) c.reason=last.slice(0,120);
+        }
+      }
+    }
+    // Fallback: tag_provision_chargebee if not boolean
+    if(c.reason==='—'){
+      const tag=r.tag_provision_chargebee||'';
+      if(tag&&tag!=='unknown'&&tag!=='true'&&tag!=='false') c.reason=tag;
+    }
+  });
+  gExtRows=Object.values(byCust);
+}
+
+function renderExtTable() {
+  const ownerF=document.getElementById('ext-f-owner').value;
+  const custF=document.getElementById('ext-f-customer').value.toLowerCase();
+
+  let rows=gExtRows.filter(r=>{
+    if(ownerF&&r.owner!==ownerF)return false;
+    if(custF&&!r.name.toLowerCase().includes(custF))return false;
+    return true;
+  });
+
+  if(extSortCol>=0) rows=sortRows(rows,extSortCol,extSortDir,'ext');
+  else rows=[...rows].sort((a,b)=>b.totalEur-a.totalEur);
+
+  const tbody=document.getElementById('ext-tbody');
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="7" class="empty">No external collection cases</td></tr>';return;}
+  tbody.innerHTML=rows.map(r=>`<tr>
+    <td class="td-bold">${escape(r.name)}</td>
+    <td class="td-mono td-gray">${escape(r.customer_id)}</td>
+    <td class="td-bold td-red">${fmt(r.totalEur)}</td>
+    <td class="td-gray" style="font-size:10px">${r.invoices.slice(0,3).join(', ')+(r.invoices.length>3?'…':'')}</td>
+    <td><span class="owner-chip"><span class="owner-dot" style="background:${ownerColor(r.owner)}"></span>${ownerLabel(r.owner)}</span></td>
+    <td class="td-gray">${fmtDate(r.transferred_at)}</td>
+    <td class="td-gray" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escape(r.reason)}</td>
+  </tr>`).join('');
+  document.getElementById('ext-count').textContent=`${rows.length} customers in external collection`;
+}
+
+// ============ SORT ============
+function sortRows(rows, col, dir, tableId) {
+  const getVal = (r,c) => {
+    if(tableId==='inv') return [r.invoice_id,r.customer_name,r.country,r.balanceEur,r.invoice_date,r.due_date,r.daysOverdue,r.owner][c];
+    if(tableId==='cust') return [r.name,r.country,r.totalEur,r.nb,r.avgDays,r.owner][c];
+    if(tableId==='ext') return [r.name,r.customer_id,r.totalEur,'',r.owner,r.transferred_at][c];
+    return '';
+  };
+  return [...rows].sort((a,b)=>{
+    let va=getVal(a,col)||'', vb=getVal(b,col)||'';
+    if(typeof va==='number') return dir*(va-vb);
+    return dir*String(va).localeCompare(String(vb));
+  });
+}
+
+function sortTable(tableId, col) {
+  let sortCol, sortDir;
+  if(tableId==='inv'){
+    if(invSortCol===col)invSortDir*=-1;else{invSortCol=col;invSortDir=1;}
+    sortCol=invSortCol; sortDir=invSortDir;
+  } else if(tableId==='cust'){
+    if(custSortCol===col)custSortDir*=-1;else{custSortCol=col;custSortDir=1;}
+    sortCol=custSortCol; sortDir=custSortDir;
+  } else {
+    if(extSortCol===col)extSortDir*=-1;else{extSortCol=col;extSortDir=1;}
+    sortCol=extSortCol; sortDir=extSortDir;
+  }
+  // Update header icons
+  const tbl=document.getElementById(tableId+'-table');
+  if(tbl) tbl.querySelectorAll('thead th').forEach((th,i)=>{
+    th.classList.remove('sort-asc','sort-desc');
+    if(i===sortCol) th.classList.add(sortDir===1?'sort-asc':'sort-desc');
+  });
+  if(tableId==='inv')renderInvTable();
+  else if(tableId==='cust')renderCustTable();
+  else renderExtTable();
+}
+
+// ============ ACTIVITY PAGE ============
+function renderActivityOwnerFilter() {
+  const bar=document.getElementById('act-owner-bar');
+  bar.innerHTML=`<button class="owner-btn active" style="background:#1a1a1a;color:#fff;border-color:#1a1a1a" onclick="selectActOwner(null,this)">All</button>`;
+  owners.filter(o=>o.key!=='non_assigned').forEach(o=>{
+    bar.innerHTML+=`<button class="owner-btn" onclick="selectActOwner('${o.key}',this)">${o.label}</button>`;
+  });
+}
+
+function selectActOwner(key,btn) {
+  document.querySelectorAll('.owner-btn').forEach(b=>{b.classList.remove('active');b.style.background='';b.style.color='';b.style.borderColor='';});
+  btn.classList.add('active');
+  if(key){btn.style.background=ownerColor(key);btn.style.color='#fff';btn.style.borderColor='transparent';}
+  else{btn.style.background='#1a1a1a';btn.style.color='#fff';btn.style.borderColor='#1a1a1a';}
+  gActOwner=key;
+  const sevenDaysAgo=toISO(new Date(today.getTime()-7*86400000));
+  renderActivity(key,sevenDaysAgo);
+}
+
+function renderActivity(ownerKey, sevenDaysAgo) {
+  const eng=ownerKey?gEngine.filter(r=>r.owner===ownerKey):gEngine;
+  let totalEur=0; const custSet=new Set(); let daysSum=0,daysCount=0;
+  eng.forEach(r=>{totalEur+=toEur(r.balance,r.currency);custSet.add(r.customer_id);
+    if(r.due_date){daysSum+=daysOver(r.due_date);daysCount++;}});
+
+  const acts=ownerKey?gAction.filter(a=>eng.find(e=>e.customer_id===a.customer_id)):gAction;
+  const rems=ownerKey?gReminders.filter(r=>eng.find(e=>e.invoice_id===r.invoice_id)):gReminders;
+
+  const doneFiltered=gDoneActions.filter(a=>{
+    if(!ownerKey)return true;
+    return (a.description||'').includes(ownerKey)||eng.find(e=>e.customer_id===a.customer_id&&!(a.description||'').includes('@brevo.com'));
+  });
+
+  // Coverage
+  const contactedCusts=new Set();
+  doneFiltered.filter(a=>a.created_at.slice(0,10)>=sevenDaysAgo).forEach(a=>contactedCusts.add(a.customer_id));
+  const covPct=custSet.size?Math.round(contactedCusts.size/custSet.size*100):0;
+
+  // Phone splits — dedup: 1 per customer per day per category
+  const NO_ANSWER = ['no reply','no answer','no one picked up','no pickup','not responsible','no response','unresponsive'];
+  const isNoAns = desc => NO_ANSWER.some(p=>(desc||'').toLowerCase().includes(p));
+  const seenAct = new Set();
+  let callsOk=0, callsNok=0;
+  doneFiltered.filter(a=>a.created_at.slice(0,10)>=sevenDaysAgo).forEach(a=>{
+    const cat = isNoAns(a.description)?'nok':'ok';
+    const key = `${a.customer_id}|${a.created_at.slice(0,10)}|${cat}`;
+    if(seenAct.has(key)) return;
+    seenAct.add(key);
+    if(cat==='nok') callsNok++; else callsOk++;
+  });
+
+  // Email splits
+  const emailStats=ownerKey?gEmailStats.filter(s=>s.owner===ownerKey):gEmailStats;
+  const remEmails=emailStats.filter(s=>s.stat_date>=sevenDaysAgo&&s.category==='A'&&s.direction==='outbound').reduce((s,r)=>s+(r.nb_emails||0),0);
+  const outEmails=emailStats.filter(s=>s.stat_date>=sevenDaysAgo&&s.category==='B'&&s.direction==='outbound').reduce((s,r)=>s+(r.nb_emails||0),0);
+
+  setText('act-outstanding',fmt(totalEur)); setText('act-invoices',eng.length);
+  setText('act-customers',custSet.size); setText('act-overdue',daysCount?Math.round(daysSum/daysCount)+'d':'—');
+  setText('act-coverage',covPct+'%'); document.getElementById('act-coverage-sub').textContent=`${contactedCusts.size}/${custSet.size}`;
+  setText('act-reminders',rems.length); setText('act-actions',acts.length);
+  setText('act-calls-ok',callsOk); setText('act-calls-nok',callsNok);
+  setText('act-rem-emails',remEmails); setText('act-out-emails',outEmails);
+
+  // Top 10 reminders
+  const remBody=document.getElementById('act-rem-body');
+  const top10rem=rems.slice(0,10);
+  if(!top10rem.length)remBody.innerHTML='<tr><td colspan="5" class="empty">No pending reminders</td></tr>';
+  else remBody.innerHTML=top10rem.map(r=>{
+    const e=eng.find(e=>e.invoice_id===r.invoice_id);
+    const days=Math.floor((today-new Date(r.created_at))/86400000);
+    const eur=toEur(r.balance||e?.balance||0,r.currency||e?.currency||'EUR');
+    return `<tr><td class="td-bold">${escape((e&&e.customer_name)||r.customer_id)}</td><td><span class="rem-badge">REM ${r.reminder_num}</span></td><td>${fmt(eur)}</td><td class="td-gray">${r.language||'—'}</td><td class="td-gray">${days}d</td></tr>`;
+  }).join('');
+
+  // Top 10 actions
+  const actsSorted=[...acts].sort((a,b)=>{
+    const eA=eng.find(e=>e.customer_id===a.customer_id), eB=eng.find(e=>e.customer_id===b.customer_id);
+    return toEur(eB?.balance||0,eB?.currency||'EUR')-toEur(eA?.balance||0,eA?.currency||'EUR');
+  }).slice(0,10);
+  const actBody=document.getElementById('act-actions-body');
+  if(!actsSorted.length)actBody.innerHTML='<tr><td colspan="4" class="empty">No open actions</td></tr>';
+  else actBody.innerHTML=actsSorted.map(a=>{
+    const e=eng.find(e=>e.customer_id===a.customer_id);
+    const tc={'csm_context':'csm','reply_customer':'reply','phone_followup':'phone','check_payment_date':'check'}[a.action_type]||'';
+    return `<tr><td class="td-bold">${escape((e&&e.customer_name)||a.customer_id)}</td><td><span class="act-type ${tc}">${(a.action_type||'').replace(/_/g,' ')}</span></td><td class="td-gray">${fmtDate(a.due_date)}</td><td class="td-gray">${a.source||'—'}</td></tr>`;
+  }).join('');
+
+  // Top 10 phone calls
+  const callBody=document.getElementById('act-calls-body');
+  const top10calls=doneFiltered.slice(0,10);
+  if(!top10calls.length)callBody.innerHTML='<tr><td colspan="4" class="empty">No phone calls</td></tr>';
+  else callBody.innerHTML=top10calls.map(a=>{
+    const e=eng.find(e=>e.customer_id===a.customer_id);
+    return `<tr><td class="td-bold">${escape((e&&e.customer_name)||a.customer_id)}</td><td class="td-gray">${(a.action_type||'').replace(/_/g,' ')}</td><td class="td-gray">${fmtDate(a.created_at)}</td><td class="td-gray" style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escape((a.description||'').slice(0,80))}</td></tr>`;
+  }).join('');
+
+  // Recent actions 2 days
+  const twoDaysAgo=toISO(new Date(today.getTime()-2*86400000));
+  const recentActs=[...acts,...gDoneActions].filter(a=>a.created_at.slice(0,10)>=twoDaysAgo&&(ownerKey?eng.find(e=>e.customer_id===a.customer_id):true))
+    .sort((a,b)=>b.created_at.localeCompare(a.created_at)).slice(0,20);
+  const recentEl=document.getElementById('act-recent');
+  if(!recentActs.length)recentEl.innerHTML='<p class="empty">No actions in the last 2 days</p>';
+  else recentEl.innerHTML=recentActs.map(a=>{
+    const e=eng.find(e=>e.customer_id===a.customer_id);
+    const tc={'csm_context':'csm','reply_customer':'reply','phone_followup':'phone','check_payment_date':'check'}[a.action_type]||'';
+    const ts=new Date(a.created_at).toLocaleDateString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+    return `<div class="act-row"><span class="act-type ${tc}">${(a.action_type||'').replace(/_/g,' ')}</span><div class="act-desc"><div class="name">${escape((e&&e.customer_name)||a.customer_id)}</div><div class="detail">${escape((a.description||'').slice(0,120))}</div></div><span class="act-date">${ts}</span></div>`;
+  }).join('');
+
+  // Charts — 15 days, stacked by owner, dedup 1 per customer per day per category
+  const last15 = [];
+  for(let i=14;i>=0;i--){const d=new Date(today);d.setDate(d.getDate()-i);last15.push(toISO(d));}
+  const day15Labels = last15.map(d=>new Date(d).toLocaleDateString('en-GB',{day:'numeric',month:'short'}));
+
+  const actPhoneOk={}, actPhoneNok={}, actEmail={}, actRem={};
+  const seenActChart = new Set();
+
+  doneFiltered.forEach(a=>{
+    const d=a.created_at.slice(0,10);
+    if(!last15.includes(d)) return;
+    const noAns=isNoAns(a.description);
+    const cat=noAns?'nok':'ok';
+    const dedupKey=`${a.customer_id}|${d}|${cat}`;
+    if(seenActChart.has(dedupKey)) return;
+    seenActChart.add(dedupKey);
+    const match=(a.description||'').match(/\(by ([^)]+)\)/);
+    const ownerEmail=match?match[1].trim():null;
+    const ownerFromDesc=ownerEmail&&owners.find(o=>o.key===ownerEmail);
+    const fallbackEng=!ownerFromDesc?eng.find(e=>e.customer_id===a.customer_id):null;
+    const ok=ownerFromDesc?ownerEmail:(fallbackEng&&fallbackEng.owner)||ownerKey||'non_assigned';
+    const key=`${d}|${ok}`;
+    if(noAns) actPhoneNok[key]=(actPhoneNok[key]||0)+1;
+    else actPhoneOk[key]=(actPhoneOk[key]||0)+1;
+  });
+
+  emailStats.filter(s=>s.direction==='outbound'&&s.category==='B').forEach(s=>{
+    if(!last15.includes(s.stat_date)) return;
+    const ok=s.owner||'non_assigned';
+    actEmail[`${s.stat_date}|${ok}`]=(actEmail[`${s.stat_date}|${ok}`]||0)+(s.nb_emails||0);
+  });
+  emailStats.filter(s=>s.direction==='outbound'&&s.category==='A').forEach(s=>{
+    if(!last15.includes(s.stat_date)) return;
+    const ok=s.owner||'non_assigned';
+    actRem[`${s.stat_date}|${ok}`]=(actRem[`${s.stat_date}|${ok}`]||0)+(s.nb_emails||0);
+  });
+
+  ['act-phone-chart','act-email-chart','act-phone-nok-chart','act-rem-chart'].forEach(id=>destroyChart(id));
+  buildStackedBar('act-phone-chart','act-phone-legend-act',last15,day15Labels,actPhoneOk,'count',false);
+  buildStackedBar('act-phone-nok-chart','act-phone-nok-legend-act',last15,day15Labels,actPhoneNok,'count',false);
+  buildStackedBar('act-email-chart','act-email-legend-act',last15,day15Labels,actEmail,'count',false);
+  buildStackedBar('act-rem-chart','act-rem-legend-act',last15,day15Labels,actRem,'count',false);
+}
+
+// ============ CHART HELPERS ============
+function destroyChart(id){const c=Chart.getChart(document.getElementById(id));if(c)c.destroy();}
+function setText(id,val){const el=document.getElementById(id);if(el){el.textContent=val;el.classList.remove('loading');}}
+
+const totalsPluginEur={id:'totEur',afterDatasetsDraw(chart){
+  const {ctx,scales:{x,y},data}=chart;
+  const totals=data.labels.map((_,i)=>chart.data.datasets.reduce((s,ds)=>s+(ds.data[i]||0),0));
+  ctx.save();ctx.font='bold 11px sans-serif';ctx.fillStyle='#444';ctx.textAlign='center';
+  data.labels.forEach((_,i)=>{if(totals[i]>0)ctx.fillText(fmt(totals[i]),x.getPixelForValue(i),y.getPixelForValue(totals[i])-8);});
+  ctx.restore();
+}};
+
+const totalsPluginCount={id:'totCount',afterDatasetsDraw(chart){
+  const {ctx,scales:{x,y},data}=chart;
+  const totals=data.labels.map((_,i)=>chart.data.datasets.reduce((s,ds)=>s+(ds.data[i]||0),0));
+  ctx.save();ctx.font='bold 11px sans-serif';ctx.fillStyle='#444';ctx.textAlign='center';
+  data.labels.forEach((_,i)=>{if(totals[i]>0)ctx.fillText(totals[i],x.getPixelForValue(i),y.getPixelForValue(totals[i])-8);});
+  ctx.restore();
+}};
+
+function buildDoughnut(canvasId,legendId,data,fmtFn){
+  destroyChart(canvasId);
+  const el=document.getElementById(canvasId);
+  const total=data.reduce((s,d)=>s+d.v,0);
+  if(legendId)document.getElementById(legendId).innerHTML=data.map(d=>{
+    const pct=total?Math.round(d.v/total*100):0;
+    return `<span class="leg-item"><span class="leg-dot" style="background:${d.color}"></span>${d.label} ${pct}%</span>`;
+  }).join('');
+  new Chart(el,{type:'doughnut',
+    data:{labels:data.map(d=>d.label),datasets:[{data:data.map(d=>d.v),backgroundColor:data.map(d=>d.color),borderWidth:2,borderColor:'transparent'}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${fmtFn(ctx.raw)}`}}},cutout:'62%'}
+  });
+}
+
+function buildStackedBar(canvasId,legendId,weekKeys,weekLabels,grouped,mode,includeOther=false){
+  destroyChart(canvasId);
+  const ownerList=includeOther?owners:[...owners.filter(o=>o.key!=='non_assigned')];
+  if(legendId)document.getElementById(legendId).innerHTML=ownerList.map(o=>`<span class="leg-item"><span class="leg-dot" style="background:${o.color}"></span>${o.label}</span>`).join('');
+  const datasets=ownerList.map(o=>({label:o.label,data:weekKeys.map(wk=>grouped[`${wk}|${o.key}`]||0),backgroundColor:o.color,borderWidth:0}));
+  // Calculate max total to add headroom for labels
+  const maxTotal = Math.max(...weekKeys.map(wk=>ownerList.reduce((s,o)=>s+(grouped[`${wk}|${o.key}`]||0),0)),0);
+  const suggestedMax = maxTotal > 0 ? maxTotal * 1.18 : 10;
+  const plugin = mode==='eur' ? totalsPluginEur : totalsPluginCount;
+  new Chart(document.getElementById(canvasId),{type:'bar',data:{labels:weekLabels,datasets},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{stacked:true,grid:{display:false},ticks:{color:'#888',font:{size:9}}},
+              y:{stacked:true,suggestedMax,grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#888',font:{size:9},callback:v=>mode==='eur'?fmt(v):v}}}},
+    plugins:[plugin]
+  });
+}
+
+function buildSimpleBar(canvasId,legendId,labels,data,color,labelText){
+  destroyChart(canvasId);
+  const el=document.getElementById(canvasId); if(!el)return;
+  if(legendId)document.getElementById(legendId).innerHTML=`<span class="leg-item"><span class="leg-dot" style="background:${color}"></span>${labelText}</span>`;
+  new Chart(el,{type:'bar',data:{labels,datasets:[{data,backgroundColor:color,borderWidth:0,borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{grid:{display:false},ticks:{color:'#888',font:{size:9}}},y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#888',font:{size:9},stepSize:1}}}}
+  });
+}
+
+// ============ EMAIL TEMPLATES ============
+let gTemplates = [];
+let tmplRemNum = 0;
+let tmplLang = 'French';
+let tmplIsMulti = false;
+
+async function loadTemplates() {
+  try {
+    const data = await sbFetch('reminder_templates?select=reminder_num,language,is_wallet,is_multi,subject,body_html&order=reminder_num.asc,language.asc&limit=200');
+    gTemplates = data || [];
+    renderTemplates();
+  } catch(e) {
+    document.getElementById('tmpl-display').innerHTML = '<div class="tmpl-empty">Failed to load templates.</div>';
+  }
+}
+
+function setRemTab(num, el) {
+  tmplRemNum = num;
+  document.querySelectorAll('.rem-tab').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderTemplates();
+}
+
+function setLangTab(lang, el) {
+  tmplLang = lang;
+  document.querySelectorAll('.lang-tab').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderTemplates();
+}
+
+function toggleMulti() {
+  tmplIsMulti = !tmplIsMulti;
+  const btn = document.getElementById('multi-toggle');
+  btn.textContent = tmplIsMulti ? 'Multiple invoices' : 'Single invoice';
+  btn.style.background = tmplIsMulti ? '#eaf3de' : '#fff';
+  btn.style.color = tmplIsMulti ? '#3b6d11' : '#555';
+  btn.style.borderColor = tmplIsMulti ? '#3b6d11' : '#e0e0dc';
+  renderTemplates();
+}
+
+function namedRecipientDoc(lang) {
+  const docs = {
+    French: `Formal salutation built from gender and last name:<br>
+      <span style="color:#555">• <code>Monsieur Dupont,</code> (M + lastname known)</span><br>
+      <span style="color:#555">• <code>Madame Martin,</code> (F + lastname known)</span><br>
+      <span style="color:#555">• <code>Madame, Monsieur,</code> (gender unknown)</span>`,
+    English: `Formal salutation built from gender and last name:<br>
+      <span style="color:#555">• <code>Mr. Smith,</code> (M + lastname known)</span><br>
+      <span style="color:#555">• <code>Ms. Johnson,</code> (F + lastname known)</span><br>
+      <span style="color:#555">• <code>Dear Sir / Madam,</code> (gender unknown)</span>`,
+    German: `Formal salutation built from gender and last name:<br>
+      <span style="color:#555">• <code>Herr Müller,</code> (M + lastname known)</span><br>
+      <span style="color:#555">• <code>Frau Schmidt,</code> (F + lastname known)</span><br>
+      <span style="color:#555">• <code>Sehr geehrte Damen und Herren,</code> (gender unknown)</span>`,
+    Italian: `Formal salutation built from gender and last name:<br>
+      <span style="color:#555">• <code>Sig. Rossi,</code> (M + lastname known)</span><br>
+      <span style="color:#555">• <code>Sig.ra Bianchi,</code> (F + lastname known)</span><br>
+      <span style="color:#555">• <code>Gentile,</code> (gender unknown)</span>`,
+    Spanish: `Formal salutation built from gender and last name:<br>
+      <span style="color:#555">• <code>Sr. García,</code> (M + lastname known)</span><br>
+      <span style="color:#555">• <code>Sra. López,</code> (F + lastname known)</span><br>
+      <span style="color:#555">• <code>Estimado/a,</code> (gender unknown)</span>`,
+    Portuguese: `Formal salutation built from gender and last name:<br>
+      <span style="color:#555">• <code>Sr. Silva,</code> (M + lastname known)</span><br>
+      <span style="color:#555">• <code>Sra. Santos,</code> (F + lastname known)</span><br>
+      <span style="color:#555">• <code>Prezado(a),</code> (gender unknown)</span>`,
+  };
+  return docs[lang] || docs.English;
+}
+
+function renderTemplates() {
+  if (!gTemplates.length) return;
+
+  // Find matching template (non-wallet first)
+  const match = gTemplates.find(t =>
+    t.reminder_num === tmplRemNum &&
+    t.language === tmplLang &&
+    t.is_multi === tmplIsMulti &&
+    t.is_wallet === false
+  );
+
+  const remLabels = ['Polite first notice','Follow-up request','Urgent — no reply','Firm — no evidence','Suspension notice','Final warning — 48h'];
+  const langFlags = {French:'🇫🇷',English:'🇬🇧',Italian:'🇮🇹',Spanish:'🇪🇸',German:'🇩🇪',Portuguese:'🇵🇹'};
+
+  const container = document.getElementById('tmpl-display');
+
+  if (!match) {
+    container.innerHTML = `<div class="tmpl-empty">No template found for REM ${tmplRemNum} · ${tmplLang} · ${tmplIsMulti ? 'multi' : 'single'} invoice.</div>`;
+    return;
+  }
+
+  // Highlight [[variables]] in subject and body
+  const highlightVars = s => (s||'').replace(/\[\[([^\]]+)\]\]/g,
+    '<span style="background:#fef4e0;color:#8a5a00;border-radius:3px;padding:0 3px;font-size:0.9em;font-weight:500">[[$1]]</span>');
+
+  const bodyHighlighted = highlightVars(match.body_html);
+  const subjectHighlighted = highlightVars(match.subject);
+
+  container.innerHTML = `
+    <div class="tmpl-card">
+      <div class="tmpl-header">
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1">
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <span class="tmpl-pill tmpl-pill-rem">REM ${match.reminder_num}</span>
+            <span class="tmpl-pill tmpl-pill-lang">${langFlags[match.language]||''} ${match.language}</span>
+            ${match.is_multi ? '<span class="tmpl-pill tmpl-pill-multi">Multi-invoice</span>' : ''}
+          </div>
+          <div class="tmpl-header-subject">Subject: ${subjectHighlighted}</div>
+        </div>
+      </div>
+      <div style="padding:16px">
+        <div style="margin-bottom:12px;font-size:11px;color:#555;background:#f8f7f4;border-radius:8px;padding:12px 14px;border:0.5px solid #e8e8e4">
+          <div style="margin-bottom:8px">Variables highlighted in <span style="background:#fef4e0;color:#8a5a00;border-radius:3px;padding:0 3px;font-size:10px;font-weight:500">[[yellow]]</span> will be replaced by Make before sending.</div>
+          <div style="font-weight:600;margin-bottom:5px;font-size:11px;color:#1a1a1a">[[named_recipient]] — ${namedRecipientDoc(tmplLang)}</div>
+        </div>
+        <div class="tmpl-preview">${bodyHighlighted}</div>
+      </div>
+    </div>
+    <div style="margin-top:12px;font-size:11px;color:#aaa;text-align:center">
+      ${tmplIsMulti ? '↑ Multi-invoice version (customer has 2+ unpaid invoices)' : '↑ Single-invoice version — PDF attached when available'}
+    </div>
+  `;
+}
+
+// ============ BOOT ============
+loadAll();
+</script>
+</body>
+</html>
